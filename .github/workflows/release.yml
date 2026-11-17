@@ -1,0 +1,32 @@
+name: Package and publish addon
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          toc_version="$(sed -n 's/^## Version: *//p' WishPetTactics/WishPetTactics.toc | tr -d '\r')"
+          if [[ ! "$version" =~ ^[0-9]+(\.[0-9]+)+$ || "$version" != "$toc_version" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match TOC version $toc_version"
+            exit 1
+          fi
+          archive="WishPetTactics-$version.zip"
+          git archive --format=zip --output="$archive" HEAD WishPetTactics/
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$archive" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$archive" --verify-tag --title "WishPetTactics $version" --generate-notes
+          fi
