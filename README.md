@@ -17,6 +17,6 @@ Download the versioned ZIP from [Releases](https://github.com/WishFlex/WishPetTa
 
 ## 发布新版本 / Publishing a release
 
-更新插件 TOC 中的版本并提交到 GitHub，再推送匹配的版本标签，例如 `v6.1.47`。GitHub Actions 会生成包含 `WishPetTactics/` 的 ZIP，并将其附到 Release。
+更新插件 TOC 中的版本，在 `CHANGELOG.md` 添加同版本的中英文更新说明，提交到 GitHub 后推送匹配的版本标签，例如 `v6.1.48`。GitHub Actions 会生成包含 `WishPetTactics/` 的 ZIP，并将该版本的双语说明写入 Release。
 
 Push a version tag matching the addon's TOC version to build and publish the ZIP automatically.

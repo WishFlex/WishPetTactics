@@ -7,7 +7,7 @@
 ## Notes-zhTW: 現代暗黑 1px 極簡寵物對戰中心 (模組化架構 / 核心藏品首頁 / 獨立槽位閾值 / 智能腳本)
 ## IconTexture: Interface\AddOns\WishPetTactics\Assets\Textures\Minimap\icon.tga
 ## Author: Wish
-## Version: 6.1.47
+## Version: 6.1.48
 ## OptionalDeps: Rematch, tdBattlePetScript, tdBattlePetScript_Rematch, PetBattleScripts
 ## SavedVariables: WishRematchDB
 

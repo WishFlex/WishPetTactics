@@ -39,16 +39,16 @@ local function RenderRoutePetDetails(owner, lines, count)
             fs:SetWordWrap(false)
             tip.lines[i] = fs
         end
-        local height = i == 1 and 34 or (lines[i]:find("|T", 1, true) and 24 or 18)
+        local height = i == 1 and 28 or (lines[i]:find("|T", 1, true) and 22 or 16)
         fs:ClearAllPoints()
         fs:SetPoint("TOPLEFT", 10, -y)
-        fs:SetSize(340, height)
+        fs:SetSize(260, height)
         if fs._text ~= lines[i] then fs:SetText(lines[i]); fs._text = lines[i] end
         fs:Show()
         y = y + height
     end
     for i = count + 1, #tip.lines do tip.lines[i]:Hide() end
-    tip:SetSize(360, y + 8)
+    tip:SetSize(280, y + 8)
     tip:ClearAllPoints()
     tip:SetPoint("TOPLEFT", owner, "TOPRIGHT", 8, 0)
     tip.owner = owner
@@ -106,7 +106,7 @@ local function ShowRoutePetTooltip(icon)
     local quality = Theme.QualityColors[icon.rarity]
     local portrait = icon.petTexture or QUESTION_ICON
     local lines = {
-        string.format("|T%s:30:30:0:0:64:64|t  |cfff3f4f6%s|r", portrait, icon.petName),
+        string.format("|T%s:24:24:0:0:64:64|t  |cfff3f4f6%s|r", portrait, icon.petName),
     }
     local lineCount = 1
 
@@ -114,37 +114,23 @@ local function ShowRoutePetTooltip(icon)
         lineCount = lineCount + 1
         lines[lineCount] = "|cffff6161" .. ns:T("未拥有此宠物") .. "|r"
     end
-    if icon.level then
-        local levelText = icon.level < 25 and ns:TF("未满级（%d / 25）", icon.level)
-            or ns:TF("等级：%d", icon.level)
-        lineCount = lineCount + 1
-        lines[lineCount] = "|cffffd166" .. levelText .. "|r"
-    end
-    if quality then
-        lineCount = lineCount + 1
-        lines[lineCount] = ns:TF("品质：%s", quality[4])
-    end
-    if icon.breed and icon.breed ~= "" then
-        lineCount = lineCount + 1
-        lines[lineCount] = ns:TF("属性：|cff38bdf8%s|r", icon.breed)
-    end
+    local infoParts = {}
+    if icon.level then infoParts[#infoParts + 1] = ns:TF("%d级", icon.level) end
+    if quality then infoParts[#infoParts + 1] = quality[4] end
+    if icon.breed and icon.breed ~= "" then infoParts[#infoParts + 1] = "|cff38bdf8" .. icon.breed .. "|r" end
     local petType = Theme.PetTypes[icon.petType]
-    if petType then
+    if petType then infoParts[#infoParts + 1] = petType.name end
+    if #infoParts > 0 then
         lineCount = lineCount + 1
-        lines[lineCount] = ns:TF("宠物类型：%s", petType.name)
+        lines[lineCount] = table.concat(infoParts, "  |cff6b7280·|r  ")
     end
     if icon.health and icon.maxHealth and icon.maxHealth > 0 then
         lineCount = lineCount + 1
-        lines[lineCount] = ns:TF("生命值：%d / %d", math.max(0, icon.health), icon.maxHealth)
-    end
-    if icon.power and icon.speed then
-        lineCount = lineCount + 1
-        lines[lineCount] = ns:TF("攻击：%d  速度：%d", icon.power, icon.speed)
+        lines[lineCount] = string.format("|cffff7070%d/%d|r  |cff6b7280·|r  攻%d  |cff6b7280·|r  速%d",
+            math.max(0, icon.health), icon.maxHealth, icon.power or 0, icon.speed or 0)
     end
 
-    lineCount = lineCount + 1
-    lines[lineCount] = ns:T("出战技能：")
-    local abilityCount = 0
+    local abilityParts = {}
     for idx = 1, 3 do
         local abilityID = icon.abilities and tonumber(icon.abilities[idx])
         if abilityID and abilityID > 0 then
@@ -155,15 +141,13 @@ local function ShowRoutePetTooltip(icon)
             end
             local abilityName, abilityIcon = info and info[1], info and info[2]
             if abilityIcon then
-                abilityCount = abilityCount + 1
-                lineCount = lineCount + 1
-                lines[lineCount] = string.format("|T%s:20:20:0:0:64:64|t  %s", tostring(abilityIcon), abilityName or ns:T("技能"))
+                abilityParts[#abilityParts + 1] = string.format("|T%s:18:18:0:0:64:64|t %s", tostring(abilityIcon), abilityName or ns:T("技能"))
             end
         end
     end
-    if abilityCount == 0 then
+    if #abilityParts > 0 then
         lineCount = lineCount + 1
-        lines[lineCount] = ns:T("未设置出战技能")
+        lines[lineCount] = table.concat(abilityParts, "  ")
     end
 
     RenderRoutePetDetails(icon, lines, lineCount)

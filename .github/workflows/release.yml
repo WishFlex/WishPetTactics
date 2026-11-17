@@ -23,10 +23,16 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match TOC version $toc_version"
             exit 1
           fi
+          notes="$(awk -v header="## $version" '$0 == header { found=1; next } found && /^## / { exit } found { print }' CHANGELOG.md)"
+          if [[ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]]; then
+            echo "Missing bilingual release notes for $version in CHANGELOG.md"
+            exit 1
+          fi
           archive="WishPetTactics-$version.zip"
           git archive --format=zip --output="$archive" HEAD WishPetTactics/
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$archive" --clobber
+            gh release edit "$GITHUB_REF_NAME" --title "WishPetTactics $version" --notes "$notes"
           else
-            gh release create "$GITHUB_REF_NAME" "$archive" --verify-tag --title "WishPetTactics $version" --generate-notes
+            gh release create "$GITHUB_REF_NAME" "$archive" --verify-tag --title "WishPetTactics $version" --notes "$notes"
           fi
