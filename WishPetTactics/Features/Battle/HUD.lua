@@ -4,6 +4,7 @@ local Theme = ns.Theme
 local HUD_FULL_WIDTH = 780
 -- Keep room for the in-HUD scale rail beside the 720px battle content.
 local HUD_SINGLE_ENEMY_WIDTH = 672
+local HUD_HIDE_BUTTON_WIDTH = 96
 
 ns.usedAllyAbilitySlot = nil
 
@@ -850,22 +851,41 @@ function ns:CreateBattleHUD()
     end)
     hud.toggleBtn = toggleBtn
 
-    -- This independent arrow remains clickable when the addon HUD is hidden.
+    -- The restore button remains clickable independently of the battle HUD.
     local scaleSidebar = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    scaleSidebar:SetSize(26, 26)
-    scaleSidebar:SetFrameStrata("HIGH")
+    scaleSidebar:SetSize(HUD_HIDE_BUTTON_WIDTH, 26)
+    scaleSidebar:SetFrameStrata("FULLSCREEN_DIALOG")
     scaleSidebar:SetFrameLevel(hud:GetFrameLevel() + 20)
     scaleSidebar:SetScale(hud:GetScale())
     scaleSidebar:SetClampedToScreen(true)
     scaleSidebar:Hide()
     hud.scaleSidebar = scaleSidebar
 
-    local nativeBtn = Theme:CreateFlatButton(scaleSidebar, 24, 24, "")
+    local nativeBtn = Theme:CreateFlatButton(scaleSidebar, HUD_HIDE_BUTTON_WIDTH, 24, ns:T("隐藏界面"))
+    nativeBtn:RegisterForClicks("LeftButtonUp")
     nativeBtn:SetPoint("CENTER", scaleSidebar, "CENTER", 0, 0)
     nativeBtn.icon = nativeBtn:CreateTexture(nil, "ARTWORK")
     nativeBtn.icon:SetSize(18, 18)
     nativeBtn.icon:SetPoint("CENTER", nativeBtn, "CENTER", 0, 0)
     nativeBtn.icon:SetTexture("Interface\\AddOns\\" .. ADDON_NAME .. "\\Assets\\Textures\\Common\\ui_hide.tga")
+
+    local restoreHint = CreateFrame("Frame", nil, scaleSidebar, "BackdropTemplate")
+    restoreHint:SetFrameStrata("TOOLTIP")
+    restoreHint:SetFrameLevel(480)
+    restoreHint:SetPoint("BOTTOMRIGHT", nativeBtn, "TOPRIGHT", 0, 6)
+    restoreHint:EnableMouse(false)
+    Theme:ApplyBackdrop(restoreHint, Theme.Colors.bgPopup, Theme.Colors.borderBlue, true)
+    local hintText = restoreHint:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    hintText:SetPoint("CENTER")
+    hintText:SetText(ns:T("点击图标显示 HUB"))
+    restoreHint:SetSize(math.ceil(hintText:GetStringWidth()) + 20, 28)
+    restoreHint:Hide()
+    local hintGeneration = 0
+    scaleSidebar:SetScript("OnHide", function()
+        hintGeneration = hintGeneration + 1
+        restoreHint:Hide()
+    end)
+
     nativeBtn:SetScript("OnClick", function()
         if ns._battleNativeMode then
             if ns.db and ns.db.settings then ns.db.settings.battleHudEnabled = true end
@@ -873,16 +893,19 @@ function ns:CreateBattleHUD()
         else
             if ns.db and ns.db.settings then ns.db.settings.battleHudEnabled = false end
             ns:ShowBattleHUD(false, true)
-            ns:ShowCustomTooltip(nativeBtn, "ANCHOR_TOP", ns:T("点击图标显示 HUB"))
-            C_Timer.After(1.5, function()
-                ns:HideCustomTooltip(nativeBtn)
+            restoreHint:Show()
+            restoreHint:Raise()
+            hintGeneration = hintGeneration + 1
+            local generation = hintGeneration
+            C_Timer.After(2, function()
+                if generation == hintGeneration then restoreHint:Hide() end
             end)
-            if ns.ShowUIFeedback then ns:ShowUIFeedback(ns:T("已恢复游戏默认宠物对战界面")) end
         end
     end)
     nativeBtn:SetScript("OnEnter", function(self)
-        local tip = ns._battleNativeMode and ns:T("显示 HUB") or ns:T("隐藏 HUB")
-        ns:ShowCustomTooltip(self, "ANCHOR_LEFT", tip)
+        if not ns._battleNativeMode then
+            ns:ShowCustomTooltip(self, "ANCHOR_LEFT", ns:T("隐藏 HUB"))
+        end
     end)
     nativeBtn:SetScript("OnLeave", function(self) ns:HideCustomTooltip(self) end)
     hud.nativeBtn = nativeBtn
@@ -890,6 +913,35 @@ function ns:CreateBattleHUD()
     function hud:SetVisibilityToggleIcon(hubVisible)
         local file = hubVisible and "ui_hide.tga" or "ui_show.tga"
         self.nativeBtn.icon:SetTexture("Interface\\AddOns\\" .. ADDON_NAME .. "\\Assets\\Textures\\Common\\" .. file)
+        scaleSidebar:ClearAllPoints()
+        ns:HideCustomTooltip(nativeBtn)
+        if hubVisible then
+            hintGeneration = hintGeneration + 1
+            restoreHint:Hide()
+            scaleSidebar:SetSize(HUD_HIDE_BUTTON_WIDTH, 26)
+            nativeBtn:SetSize(HUD_HIDE_BUTTON_WIDTH, 24)
+            nativeBtn.text:Show()
+            nativeBtn.text:ClearAllPoints()
+            nativeBtn.text:SetPoint("LEFT", nativeBtn, "LEFT", 25, 0)
+            nativeBtn.icon:ClearAllPoints()
+            nativeBtn.icon:SetPoint("LEFT", nativeBtn, "LEFT", 3, 0)
+            nativeBtn.icon:SetSize(18, 18)
+            nativeBtn:SetBackdropColor(0, 0, 0, 0)
+            nativeBtn:SetBackdropBorderColor(0, 0, 0, 0)
+            scaleSidebar:SetPoint("RIGHT", self.bindBtn, "LEFT", -4, 0)
+        else
+            scaleSidebar:SetScale(1)
+            scaleSidebar:SetSize(36, 36)
+            nativeBtn:SetSize(36, 36)
+            nativeBtn.text:Hide()
+            nativeBtn.icon:ClearAllPoints()
+            nativeBtn.icon:SetPoint("CENTER")
+            nativeBtn.icon:SetSize(28, 28)
+            nativeBtn:SetBackdropColor(unpack(Theme.Colors.bgPopup))
+            nativeBtn:SetBackdropBorderColor(unpack(Theme.Colors.borderBlue))
+            scaleSidebar:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -18, 72)
+            scaleSidebar:Raise()
+        end
     end
 
     -- 2. 可折叠战斗监控面板（仅保留角色升级监控 + 脚本日志/复活CD，最多 2 行）
@@ -1174,7 +1226,7 @@ function ns:CreateBattleHUD()
     end
 
     local function UpdateBottomActionWidth()
-        local actionWidth = math.max(80, (hud:GetWidth() - 20 - 78 - 26 - 18) / 3)
+        local actionWidth = math.max(80, (hud:GetWidth() - 20 - 78 - HUD_HIDE_BUTTON_WIDTH - 18) / 3)
         stepBtn:SetWidth(actionWidth)
         editScriptBtn:SetWidth(actionWidth)
         bindBtn:SetWidth(actionWidth)

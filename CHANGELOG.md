@@ -1,5 +1,15 @@
 # 更新说明 / Changelog
 
+## 6.1.50
+
+### 中文
+- 显示 HUB 时，隐藏按钮带有“隐藏界面”文字。隐藏后，恢复提示在图标上方显示两秒。
+- 放大恢复图标，将它移至屏幕右下侧并提升显示层级，避开原生对战操作区。
+
+### English
+- Added a Hide HUB label to the button. After hiding the HUB, the restore hint stays above the icon for two seconds.
+- Enlarged the restore icon and moved it to a higher layer near the lower right, away from the default battle controls.
+
 ## 6.1.49
 
 ### 中文
