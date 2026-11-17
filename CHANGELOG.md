@@ -1,5 +1,15 @@
 # 更新说明 / Changelog
 
+## 6.1.49
+
+### 中文
+- 隐藏 HUB 后仅保留图标，并在图标上方短暂显示“点击图标显示 HUB”提示。
+- HUB 底部的执行脚本、编辑脚本和快捷键按钮按可用宽度等宽排列，缩放控件与按钮间距统一。
+
+### English
+- When the HUB is hidden, only its icon remains; a brief “Click the icon to show the HUB” hint appears above it.
+- The execute, edit script, and hotkey buttons share the available bottom-row width equally, with consistent spacing around the scale controls.
+
 ## 6.1.48
 
 ### 中文

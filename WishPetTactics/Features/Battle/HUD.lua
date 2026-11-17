@@ -873,6 +873,10 @@ function ns:CreateBattleHUD()
         else
             if ns.db and ns.db.settings then ns.db.settings.battleHudEnabled = false end
             ns:ShowBattleHUD(false, true)
+            ns:ShowCustomTooltip(nativeBtn, "ANCHOR_TOP", ns:T("点击图标显示 HUB"))
+            C_Timer.After(1.5, function()
+                ns:HideCustomTooltip(nativeBtn)
+            end)
             if ns.ShowUIFeedback then ns:ShowUIFeedback(ns:T("已恢复游戏默认宠物对战界面")) end
         end
     end)
@@ -1137,7 +1141,7 @@ function ns:CreateBattleHUD()
     scaleSidebar:SetPoint("RIGHT", bindBtn, "LEFT", -4, 0)
 
     local editScriptBtn = Theme:CreateActionButton(hud, 104, 22, "编辑脚本", "script", nil, "PRIMARY")
-    editScriptBtn:SetPoint("RIGHT", scaleSidebar, "LEFT", -6, 0)
+    editScriptBtn:SetPoint("RIGHT", scaleSidebar, "LEFT", -4, 0)
     editScriptBtn:SetScript("OnClick", function()
         if ns.ToggleScriptWorkspace then
             ns:ToggleScriptWorkspace()
@@ -1148,7 +1152,7 @@ function ns:CreateBattleHUD()
     -- Keep scale controls directly beside the script action button.
     local scaleControls = CreateFrame("Frame", nil, hud)
     scaleControls:SetSize(78, 22)
-    scaleControls:SetPoint("RIGHT", editScriptBtn, "LEFT", -6, 0)
+    scaleControls:SetPoint("RIGHT", editScriptBtn, "LEFT", -4, 0)
     hud.scaleControls = scaleControls
     local scaleMinus = Theme:CreateFlatButton(scaleControls, 20, 20, "−")
     scaleMinus:SetPoint("LEFT", scaleControls, "LEFT", 0, 0)
@@ -1170,7 +1174,10 @@ function ns:CreateBattleHUD()
     end
 
     local function UpdateBottomActionWidth()
-        stepBtn:SetWidth(math.max(180, hud:GetWidth() - 358))
+        local actionWidth = math.max(80, (hud:GetWidth() - 20 - 78 - 26 - 18) / 3)
+        stepBtn:SetWidth(actionWidth)
+        editScriptBtn:SetWidth(actionWidth)
+        bindBtn:SetWidth(actionWidth)
         stepBtn:ClearAllPoints()
         stepBtn:SetPoint("BOTTOMLEFT", hud, "BOTTOMLEFT", 10, 6)
         stepBtn:SetPoint("RIGHT", scaleControls, "LEFT", -6, 0)
