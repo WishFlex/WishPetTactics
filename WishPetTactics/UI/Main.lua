@@ -514,18 +514,6 @@ function ns:ToggleDisplaySettings(button)
         end)
         panel.styleKey = styleKey
 
-        local battleHudToggle = Theme:CreateFlatButton(panel, 252, 26, "", nil, "LEFT")
-        battleHudToggle:SetPoint("TOPLEFT", 12, ROW_START_Y - 4 * ROW_STEP_Y)
-        battleHudToggle:SetScript("OnClick", function(_, mouseButton)
-            if mouseButton ~= "LeftButton" then return end
-            local settings = ns.db.settings
-            settings.battleHudEnabled = settings.battleHudEnabled == false
-            if C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle() then
-                ns:ShowBattleHUD(settings.battleHudEnabled)
-            end
-            panel:Refresh()
-        end)
-
         local petCardHoverToggle = Theme:CreateFlatButton(panel, 252, 26, "", nil, "LEFT")
         petCardHoverToggle:SetPoint("TOPLEFT", 12, ROW_START_Y - 5 * ROW_STEP_Y)
         petCardHoverToggle:SetScript("OnClick", function(_, mouseButton)
@@ -540,11 +528,6 @@ function ns:ToggleDisplaySettings(button)
             panel:Refresh()
         end)
 
-        local battleScaleValue, battleScaleMinus, battleScalePlus = CreateSettingRow("宠物对战HUD大小", 7, function(delta)
-            if ns.SetBattleHUDScale then ns:SetBattleHUDScale(delta) end
-            panel:Refresh()
-        end)
-
         -- 第 8 行：恢复默认显示设置
         local reset = Theme:CreateActionButton(panel, 252, 26, "恢复默认显示设置", "restore", nil, nil, false, "LEFT")
         reset:SetPoint("TOPLEFT", 12, ROW_START_Y - 7 * ROW_STEP_Y)
@@ -552,16 +535,9 @@ function ns:ToggleDisplaySettings(button)
             if mouseButton ~= "LeftButton" then return end
             ns.db.settings.uiAutoScale = true
             ns.db.settings.uiScale = 1
-            ns.db.settings.battleHudEnabled = true
-            ns.db.settings.battleHudScale = 1
             ns.db.settings.petCardHover3D = true
             Theme:UpdateAllFramesAlpha(DEFAULT_OPACITY)
             ns:RefreshMainUIScale()
-            if ns.BattleHUD then
-                ns.BattleHUD:SetScale(1)
-                if ns.BattleHUD.scaleSidebar then ns.BattleHUD.scaleSidebar:SetScale(1) end
-                if ns.BattleHUD.scaleValue then ns.BattleHUD.scaleValue:SetText("100%") end
-            end
             if C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle() then
                 ns:ShowBattleHUD(true)
             end
@@ -575,21 +551,15 @@ function ns:ToggleDisplaySettings(button)
             petCardHoverToggle:SetSelected(settings.petCardHover3D ~= false)
             petCardHoverToggle.text:SetText(ns:T(settings.petCardHover3D ~= false
                 and "宠物悬停3D详情：开启" or "宠物悬停3D详情：关闭（按住Shift）"))
-            battleHudToggle:SetSelected(settings.battleHudEnabled ~= false)
-            battleHudToggle.text:SetText(ns:T(settings.battleHudEnabled == false and "宠物对战HUD：关闭" or "宠物对战HUD：开启"))
             local scalePercent = math.floor(ns.MainFrame:GetScale() * 100 + 0.5)
             local opacityPercent = math.floor((tonumber(settings.bgAlpha) or DEFAULT_OPACITY) * 100 + 0.5)
             scaleValue:SetText(string.format("%d%%", scalePercent))
             opacityValue:SetText(string.format("%d%%", opacityPercent))
-            local battleScalePercent = math.floor((tonumber(settings.battleHudScale) or 1) * 100 + 0.5)
-            battleScaleValue:SetText(string.format("%d%%", battleScalePercent))
             local manualScale = tonumber(settings.uiScale) or 1
             scaleMinus:SetEnabled(not settings.uiAutoScale and manualScale > 0.65)
             scalePlus:SetEnabled(not settings.uiAutoScale and manualScale < 1.40)
             opacityMinus:SetEnabled(opacityPercent > 40)
             opacityPlus:SetEnabled(opacityPercent < 100)
-            battleScaleMinus:SetEnabled(battleScalePercent > 65)
-            battleScalePlus:SetEnabled(battleScalePercent < 140)
             styleKey.text:SetText(ns:T("界面切换快捷键") .. ": |cff38bdf8"
                 .. (ns.GetUIStyleKeyText and ns:GetUIStyleKeyText() or ns:T("未绑定")) .. "|r")
         end

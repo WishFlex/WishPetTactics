@@ -1149,7 +1149,8 @@ function ns:CreateScriptWorkspaceModal()
     m.saveScriptBtn = saveScriptBtn
 
     function m:Refresh()
-        if C_PetBattles and C_PetBattles.IsInBattle() and PetBattleFrame then
+        local inBattle = C_PetBattles and C_PetBattles.IsInBattle()
+        if inBattle and PetBattleFrame then
             if self:GetParent() ~= PetBattleFrame then
                 self:SetParent(PetBattleFrame)
             end

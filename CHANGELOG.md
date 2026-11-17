@@ -1,5 +1,17 @@
 # 更新说明 / Changelog
 
+## 6.1.71
+
+### 中文
+- 修复宠物对战中重载（`/reload`）后无法继续按脚本释放技能的问题。
+- 优化换宠选择界面：移除多余木框、头像框、血条与暗色遮罩，仅保留纯净的 3D 宠物模型并在阵亡模型上显示红色死亡 X 图标。
+- 调整战斗监控面板角色经验条高度（增加 2 像素）并将边框改为 50% 灰色。
+
+### English
+- Fixed script execution failing to resume after `/reload` during pet battles.
+- Streamlined the pet selection strip by removing extra frames, icons, health bars, and dark overlays, leaving only clean 3D pet models with a standalone red X icon on dead pets.
+- Increased the battle monitor player XP bar height by 2px and updated its border color to 50% gray.
+
 ## 6.1.50
 
 ### 中文

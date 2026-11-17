@@ -2739,6 +2739,23 @@ end
 local fallbackCandScratch = {}
 local fallbackVisitedScratch = {}
 
+local function BattleTeamSequence(team, route)
+    if route and route.teams then
+        for index, name in ipairs(route.teams) do
+            if name == team.name then return "|cffffd100" .. index .. "|r" end
+        end
+    end
+    local index = 0
+    local group = team.group or "未分组队伍"
+    for _, candidate in ipairs(ns.db.teams) do
+        if (candidate.group or "未分组队伍") == group then
+            index = index + 1
+            if candidate == team then return "|cffffd100" .. index .. "|r" end
+        end
+    end
+    return "|cffffd100" .. tostring(ns.db.selectedTeamIdx or 1) .. "|r"
+end
+
 function ns.AutoRouting:LoadTeamWithFallbackChain(startTeamName, routeObj, deferRefresh)
     local evaluation = {}
     wipe(fallbackCandScratch)
@@ -2768,7 +2785,7 @@ function ns.AutoRouting:LoadTeamWithFallbackChain(startTeamName, routeObj, defer
         ns.db.selectedTeamIdx = teamIndex
         self:ApplyTeamData(team, requireHealthy, evaluation, deferRefresh)
         if canApplyNow and team ~= curTeam and ns.ShowUIFeedback and not ns._battleEndReportPending then
-            ns:ShowUIFeedback(ns:TF("已切换队伍：%s", team.name or ns:T("未命名队伍")))
+            ns:ShowUIFeedback(ns:TF("已切换到 %s 号队伍", BattleTeamSequence(team, routeObj)))
         end
     end
     local checkReviveTeam1 = (routeObj ~= nil) and (routeObj.reviveLoadTeam1 ~= false)
@@ -3201,6 +3218,11 @@ end
 local function UpdateSingleUnitFrameBreed(unitFrame, owner, slotIndex, isMainHeader)
     if not unitFrame or not owner or not slotIndex then return end
     if not C_PetBattles or not C_PetBattles.IsInBattle() then return end
+    local psf = PetBattleFrame and PetBattleFrame.BottomFrame and PetBattleFrame.BottomFrame.PetSelectionFrame
+    if psf and unitFrame:GetParent() == psf then
+        if unitFrame.wishBreedText then unitFrame.wishBreedText:Hide() end
+        return
+    end
 
     local speciesID = C_PetBattles.GetPetSpeciesID(owner, slotIndex)
     if not speciesID then
@@ -3265,10 +3287,10 @@ function ns:UpdateBattleEnemyBreedDisplay()
     local enemy = Enum.BattlePetOwner.Enemy
     UpdateSingleUnitFrameBreed(PetBattleFrame.ActiveAlly, ally, C_PetBattles.GetActivePet(ally), true)
     UpdateSingleUnitFrameBreed(PetBattleFrame.ActiveEnemy, enemy, C_PetBattles.GetActivePet(enemy), true)
-    UpdateSingleUnitFrameBreed(PetBattleFrame.Ally2, ally, 2, false)
-    UpdateSingleUnitFrameBreed(PetBattleFrame.Ally3, ally, 3, false)
-    UpdateSingleUnitFrameBreed(PetBattleFrame.Enemy2, enemy, 2, false)
-    UpdateSingleUnitFrameBreed(PetBattleFrame.Enemy3, enemy, 3, false)
+    UpdateSingleUnitFrameBreed(PetBattleFrame.Ally2, ally, PetBattleFrame.Ally2.petIndex, false)
+    UpdateSingleUnitFrameBreed(PetBattleFrame.Ally3, ally, PetBattleFrame.Ally3.petIndex, false)
+    UpdateSingleUnitFrameBreed(PetBattleFrame.Enemy2, enemy, PetBattleFrame.Enemy2.petIndex, false)
+    UpdateSingleUnitFrameBreed(PetBattleFrame.Enemy3, enemy, PetBattleFrame.Enemy3.petIndex, false)
 end
 
 function ns:SetupBattleEnemyBreedHUD()
@@ -4429,6 +4451,10 @@ function ns.ScriptEngine:ExecuteStep()
     if ns.ScriptEditBox and ns.ScriptEditBox:HasFocus() then return end
     if not C_PetBattles or not C_PetBattles.IsInBattle() then return end
     if self.isPaused then return end
+    if not self.battleStateKnown then
+        if ns.ShowUIFeedback then ns:ShowUIFeedback(ns:T("重载后无法确认回合，请手动完成本场战斗")) end
+        return
+    end
 
     local now = GetTime()
     if now - (self._lastExecTime or 0) < 0.10 then return end
@@ -4694,8 +4720,35 @@ local function GetSameSpeciesReplacementSlots(previousPetIDs)
     return table.concat(changedSlots, "、")
 end
 
+local function GetBattleReportRoute(currentTeam)
+    local routing = ns.AutoRouting
+    local npcID, npcName = routing:GetUnitNPCID("target")
+    return routing:FindRouteForTarget(npcID, npcName)
+        or ns:FindRouteContainingTeam(currentTeam.name)
+        or (ns.db.routeMappings and ns.db.routeMappings[ns.db.lastActiveRouteKey])
+end
+
+local function HasHealthyBattleCandidate(currentTeam, route)
+    local routing = ns.AutoRouting
+    local evaluation = {}
+    if routing:CanTeamFight(currentTeam, true, evaluation) then return true end
+    if route and route.teams and #route.teams > 0 then
+        for _, name in ipairs(route.teams) do
+            local team = routing:FindTeamByName(name)
+            if team and team ~= currentTeam and routing:CanTeamFight(team, true, evaluation) then return true end
+        end
+    else
+        local group = currentTeam.group or "未分组队伍"
+        for _, team in ipairs(ns.db.teams) do
+            if team ~= currentTeam and (team.group or "未分组队伍") == group
+                and routing:CanTeamFight(team, true, evaluation) then return true end
+        end
+    end
+    return false
+end
+
 local function ShowBattleEndTeamReport(previousTeam, previousPetIDs)
-    if not ns.db or not ns.db.settings or ns.db.settings.battleEndTeamReport == false or not ns.db.teams then return end
+    if not ns.db or not ns.db.settings or not ns.db.teams then return end
     local reportText
     local currentTeam = ns.db.teams[ns.db.selectedTeamIdx]
     if not currentTeam then
@@ -4705,31 +4758,26 @@ local function ShowBattleEndTeamReport(previousTeam, previousPetIDs)
         local currentHealthy = routing:IsCurrentLoadoutHealthyAndReady(currentTeam)
         local currentStatus = currentHealthy and ns:T("健康") or ns:T("尚未健康")
         local changedSlots = (currentTeam == previousTeam) and GetSameSpeciesReplacementSlots(previousPetIDs) or ""
+        local route = GetBattleReportRoute(currentTeam)
+        local sequence = BattleTeamSequence(currentTeam, route)
 
-        if currentTeam ~= previousTeam then
-            local previousEligible = previousTeam and routing:CanTeamFight(previousTeam, true, {})
-            if previousTeam and not previousEligible then
-                reportText = ns:TF("战斗结束：队伍 %s 已无合格宠物，已切换到队伍 %s；当前队伍%s",
-                    previousTeam.name or "", currentTeam.name or "", currentStatus)
-            else
-                reportText = ns:TF("战斗结束：已切换到队伍 %s；当前队伍%s", currentTeam.name or "", currentStatus)
+        if not currentHealthy and not HasHealthyBattleCandidate(currentTeam, route) then
+            reportText = "|cffff4040" .. ns:T("当前队伍不健康，且没有可用替换队伍") .. "|r"
+            if ns:IsRevivePetCooldownReady() then
+                reportText = reportText .. " · |cffff4040" .. ns:T("复活战斗宠物已就绪") .. "|r"
             end
-        elseif currentHealthy and changedSlots ~= "" then
-            reportText = ns:TF("战斗结束：队伍 %s 替换宠物成功（%s 号槽），队伍健康",
-                currentTeam.name or "", changedSlots)
+        elseif ns.db.settings.battleEndTeamReport == false then
+            return
+        elseif currentTeam ~= previousTeam then
+            reportText = ns:TF("已切换到 %s 号队伍", sequence)
         elseif changedSlots ~= "" then
-            reportText = ns:TF("战斗结束：队伍 %s 替换宠物成功（%s 号槽），但队伍尚未健康",
-                currentTeam.name or "", changedSlots)
-        elseif currentHealthy then
-            reportText = ns:TF("战斗结束：队伍 %s 健康，可以继续对战", currentTeam.name or "")
-        elseif not routing:CanTeamFight(currentTeam, true, {}) then
-            reportText = ns:TF("战斗结束：队伍 %s 没有符合对战要求的健康宠物，请切换队伍",
-                currentTeam.name or "")
+            reportText = ns:TF("%s 号队伍已换宠（%s 号槽）· %s", sequence, changedSlots, currentStatus)
         else
-            reportText = ns:TF("战斗结束：队伍 %s 有可用宠物，但当前队伍尚未准备健康", currentTeam.name or "")
+            reportText = ns:TF("%s 号队伍 · %s", sequence, currentStatus)
         end
     end
 
+    if ns.db.settings.battleEndTeamReport == false and not currentTeam then return end
     if ns.ShowUIFeedback then ns:ShowUIFeedback(reportText) end
     if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
         DEFAULT_CHAT_FRAME:AddMessage("|cff10b981[Wish Pet Tactics]|r " .. reportText)
@@ -4793,6 +4841,7 @@ end
 
 local engineFrame = CreateFrame("Frame")
 engineFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+engineFrame:RegisterEvent("PLAYER_LOGOUT")
 engineFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 engineFrame:RegisterEvent("GOSSIP_SHOW")
 engineFrame:RegisterEvent("GOSSIP_CLOSED")
@@ -4816,6 +4865,20 @@ engineFrame:RegisterEvent("PLAYER_XP_UPDATE")
 local wasReviveReady = true
 local lastCooldownPollTime = 0
 local inRoundPlayback = false
+
+-- Use stable battle-level identifiers so reload recovery succeeds regardless of mid-turn HP/slot state.
+local function BattleReloadSignature()
+    local ally, enemy = Enum.BattlePetOwner.Ally, Enum.BattlePetOwner.Enemy
+    return table.concat({
+        UnitGUID("player") or "",
+        C_PetBattles.GetNumPets(ally) or 0,
+        C_PetBattles.GetNumPets(enemy) or 0,
+        C_PetBattles.GetPetSpeciesID(ally, 1) or 0,
+        C_PetBattles.GetPetSpeciesID(enemy, 1) or 0,
+        C_PetBattles.GetPetSpeciesID(enemy, 2) or 0,
+        C_PetBattles.GetPetSpeciesID(enemy, 3) or 0,
+    }, ":")
+end
 local gossipGeneration = 0
 function ns.AutoRouting:GetGossipSession() return gossipGeneration end
 local gossipDebugEnabled = false
@@ -4907,7 +4970,89 @@ SLASH_WISHROUNDDEBUG1 = "/wpround"
 local battleOwners = { 1, 2 }
 
 engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
-    if event == "PLAYER_ENTERING_WORLD" then
+    if event == "PLAYER_LOGOUT" then
+        local se = ns.ScriptEngine
+        if ns.db then
+            ns.db.battleReload = nil
+            if C_PetBattles and C_PetBattles.IsInBattle()
+                and C_PetBattles.IsPlayerNPC(Enum.BattlePetOwner.Enemy) then
+                local completed = tonumber(se.lastCompletedRound) or 0
+                if inRoundPlayback then
+                    completed = completed + 1
+                end
+                ns.db.battleReload = {
+                    savedAt = time and time() or GetTime(),
+                    signature = BattleReloadSignature(),
+                    completedRound = completed,
+                    sideRound = se.sideRound,
+                    lastActiveSlot = se.lastActiveSlot,
+                    playedSlots = se.playedSlots,
+                    battleStartTime = ns.BattleStats.battleStartTime,
+                }
+            end
+        end
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        local snapshot = ns.db and ns.db.battleReload
+        if ns.db then ns.db.battleReload = nil end
+        if C_PetBattles and C_PetBattles.IsInBattle() then
+            local se = ns.ScriptEngine
+            local ally = Enum.BattlePetOwner.Ally
+            local enemy = Enum.BattlePetOwner.Enemy
+            battleOwners[1] = ally
+            battleOwners[2] = enemy
+            local curTime = time and time() or GetTime()
+            local age = snapshot and snapshot.savedAt and (curTime - snapshot.savedAt)
+            local snapshotMatched = (age and age >= 0 and age <= 180 and snapshot.signature == BattleReloadSignature()) and true or false
+
+            se.battleStateKnown = true
+            se.resumedBattle = true
+            inRoundPlayback = false
+            se._lastExecTime = 0
+            if snapshotMatched then
+                se.lastCompletedRound = tonumber(snapshot.completedRound) or 0
+                se.currentRound = se.lastCompletedRound + 1
+                se.sideRound = snapshot.sideRound or {}
+                se.lastActiveSlot = snapshot.lastActiveSlot or {}
+                se.playedSlots = snapshot.playedSlots or {}
+                se.sideRound[ally] = se.sideRound[ally] or 1
+                se.sideRound[enemy] = se.sideRound[enemy] or 1
+                se.lastActiveSlot[ally] = C_PetBattles.GetActivePet(ally) or se.lastActiveSlot[ally] or 1
+                se.lastActiveSlot[enemy] = C_PetBattles.GetActivePet(enemy) or se.lastActiveSlot[enemy] or 1
+                se.playedSlots[ally] = se.playedSlots[ally] or {}
+                se.playedSlots[enemy] = se.playedSlots[enemy] or {}
+                se.playedSlots[ally][se.lastActiveSlot[ally]] = true
+                se.playedSlots[enemy][se.lastActiveSlot[enemy]] = true
+                ns.BattleStats.battleStartTime = snapshot.battleStartTime or GetTime()
+            else
+                local aSlot = C_PetBattles.GetActivePet(ally) or 1
+                local eSlot = C_PetBattles.GetActivePet(enemy) or 1
+                se.lastCompletedRound = 0
+                se.currentRound = 1
+                se.sideRound[ally] = 1
+                se.sideRound[enemy] = 1
+                se.lastActiveSlot[ally] = aSlot
+                se.lastActiveSlot[enemy] = eSlot
+                wipe(se.playedSlots[ally])
+                wipe(se.playedSlots[enemy])
+                se.playedSlots[ally][aSlot] = true
+                se.playedSlots[enemy][eSlot] = true
+                ns.BattleStats.battleStartTime = GetTime()
+            end
+            se.swappedInRound[ally] = false
+            se.swappedInRound[enemy] = false
+            se:AddLog(string.format(ns:T("就绪 - 按 |cff3b82f6[%s]|r 执行"), ns.FormatHotKeyDisplay and ns:FormatHotKeyDisplay() or "SPACE"))
+            if ns.ShowBattleHUD then ns:ShowBattleHUD(true) end
+            if ns.SetupBattleEnemyBreedHUD then ns:SetupBattleEnemyBreedHUD() end
+            C_Timer.After(0.25, function()
+                if C_PetBattles and C_PetBattles.IsInBattle() then
+                    if ns.ShowBattleHUD then ns:ShowBattleHUD(true) end
+                    if ns.SetupBattleEnemyBreedHUD then ns:SetupBattleEnemyBreedHUD() end
+                    if ns.UpdateBattleEnemyBreedDisplay then ns:UpdateBattleEnemyBreedDisplay() end
+                    if ns.ApplyBattleHotKeyBinding then ns:ApplyBattleHotKeyBinding() end
+                    if ns.UpdateBattleHUD then ns:UpdateBattleHUD() end
+                end
+            end)
+        end
         if ns.InvalidatePetAndTeamCache then
             ns:InvalidatePetAndTeamCache()
         end
@@ -5129,6 +5274,7 @@ engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
             local nowReady = ns:IsRevivePetCooldownReady()
             if nowReady and not wasReviveReady then
                 wasReviveReady = true
+                if ns.ShowUIFeedback then ns:ShowUIFeedback("|cffff4040" .. ns:T("复活战斗宠物已就绪") .. "|r") end
                 ThrottledEnsurePrepared(0.3)
             else
                 wasReviveReady = nowReady
@@ -5143,9 +5289,11 @@ engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
         end
 
     elseif event == "PET_BATTLE_OPENING_START" then
+        if ns.ScriptEngine.resumedBattle then return end
         if ns.DungeonStageBar then ns.DungeonStageBar:Hide() end
         SnapshotBattleStartStats()
         local se = ns.ScriptEngine
+        se.battleStateKnown = true
         wipe(se.logs)
         se.currentRound = 1
         se.lastCompletedRound = 0
@@ -5246,6 +5394,8 @@ engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
 
     elseif event == "PET_BATTLE_CLOSE" then
         inRoundPlayback = false
+        ns.ScriptEngine.battleStateKnown = false
+        ns.ScriptEngine.resumedBattle = false
         if ns.ShowBattleHUD then ns:ShowBattleHUD(false) end
         battleEndReportSerial = battleEndReportSerial + 1
         local reportSerial = battleEndReportSerial
