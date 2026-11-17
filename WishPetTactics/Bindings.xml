@@ -1,0 +1,8 @@
+<Bindings>
+    <Binding name="WISHPETTACTICS_TOGGLE_TARGETS" category="ADDONS" header="WISHPETTACTICS">
+        WishPetTactics_ToggleTargets()
+    </Binding>
+    <Binding name="WISHPETTACTICS_TOGGLE_UI_STYLE" category="ADDONS">
+        WishPetTactics_ToggleUIStyle()
+    </Binding>
+</Bindings>

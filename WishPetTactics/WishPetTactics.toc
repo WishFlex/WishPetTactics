@@ -1,0 +1,39 @@
+## Interface: 120015, 120100
+## Title: |cffffffffWish|r |cffc4a0ecPet Tactics|r
+## Title-zhCN: |cffffffffWish|r |cffc4a0ecPet Tactics|r
+## Title-zhTW: |cffffffffWish|r |cffc4a0ecPet Tactics|r
+## Notes: Modern 1px flat Pet Battle manager, auto-routing & script engine
+## Notes-zhCN: 现代暗黑 1px 极简宠物对战中心 (模块化架构 / 核心藏品首页 / 独立槽位阈值 / 智能脚本)
+## Notes-zhTW: 現代暗黑 1px 極簡寵物對戰中心 (模組化架構 / 核心藏品首頁 / 獨立槽位閾值 / 智能腳本)
+## IconTexture: Interface\AddOns\WishPetTactics\Assets\Textures\Minimap\icon.tga
+## Author: Wish
+## Version: 6.1.47
+## OptionalDeps: Rematch, tdBattlePetScript, tdBattlePetScript_Rematch, PetBattleScripts
+## SavedVariables: WishRematchDB
+
+Locales\Locales.lua
+UI\Theme.lua
+UI\Widgets\PetTypeIcons.lua
+UI\Widgets\ActionIcons.lua
+Core\Core.lua
+Core\FuzzySearch.lua
+Core\BreedData.lua
+Core\Engine.lua
+UI\Widgets\Tooltips.lua
+Features\Battle\HUD.lua
+Features\Teams\Dialogs.lua
+Features\Routing\Panel.lua
+Features\Gossip\Learning.lua
+UI\Menus.lua
+Features\Home\View.lua
+Features\Home\CompactLayout.lua
+Features\Home\MinimalMode.lua
+Features\Script\CompletionLocale.lua
+Features\Script\Context.lua
+Features\Script\Completion.lua
+Features\Script\SkillPicker.lua
+Features\Script\Panel.lua
+UI\Widgets\HeaderIcons.lua
+UI\Main.lua
+Features\Guidance\Usability.lua
+Core\Commands.lua
