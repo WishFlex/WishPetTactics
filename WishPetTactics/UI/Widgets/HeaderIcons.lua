@@ -1,7 +1,7 @@
 local ADDON_NAME, ns = ...
 local Theme = ns.Theme
 local ICON_ROOT = "Interface\\AddOns\\" .. ADDON_NAME .. "\\Assets\\Textures\\Header\\"
-local BUTTON_KEYS = { "petHubBtn", "teamHubBtn", "routeHubBtn", "scriptHubBtn", "displaySettingsBtn", "viewModeToggle", "closeBtn", "sidebarAllPetsBtn", "sidebarQueueBtn" }
+local BUTTON_KEYS = { "petHubBtn", "teamHubBtn", "routeHubBtn", "scriptHubBtn", "displaySettingsBtn", "updateGuideBtn", "viewModeToggle", "closeBtn", "sidebarAllPetsBtn", "sidebarQueueBtn" }
 local TRANSPARENT = { 0, 0, 0, 0 }
 local CLOSE_ICON_SIZE = 12
 local trackedCloseButtons = setmetatable({}, { __mode = "k" })

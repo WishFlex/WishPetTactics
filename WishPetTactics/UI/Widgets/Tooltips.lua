@@ -44,6 +44,7 @@ local function SyncTooltipWatcherState()
 end
 
 local petCardHideToken = 0
+local petCardHoverToken = 0
 local function PetCardHover3DEnabled()
     return not (ns.db and ns.db.settings and ns.db.settings.petCardHover3D == false)
 end
@@ -131,6 +132,7 @@ function ns:BringModalToFront(frame)
 end
 
 function ns:HidePetDetailTooltip(forceClose)
+    petCardHoverToken = petCardHoverToken + 1
     if ns.hoveredPetFrame and not ns.hoveredPetFrame:IsMouseOver() then
         ns.hoveredPetFrame = nil
         ns.hoveredPetData = nil
@@ -153,6 +155,7 @@ function ns:HidePetDetailTooltip(forceClose)
 end
 
 function ns:HideAllTooltips()
+    petCardHoverToken = petCardHoverToken + 1
     ns.hoveredPetFrame = nil
     ns.hoveredPetData = nil
     if GameTooltip and GameTooltip:IsShown() then
@@ -486,7 +489,17 @@ function ns:ShowPetDetailTooltip(anchorFrame, pData, pinNow)
         return
     end
     CancelPetCardHide()
-    self:RenderPetCard(anchorFrame, pData, pinNow == true or IsShiftKeyDown())
+    petCardHoverToken = petCardHoverToken + 1
+    local token = petCardHoverToken
+    if pinNow or IsShiftKeyDown() then
+        self:RenderPetCard(anchorFrame, pData, true)
+        return
+    end
+    C_Timer.After(0.25, function()
+        if token ~= petCardHoverToken or not anchorFrame:IsVisible() or not anchorFrame:IsMouseOver() then return end
+        if ns.PetCardModal and ns.PetCardModal:IsShown() and ns.PetCardModal.isPinned then return end
+        ns:RenderPetCard(anchorFrame, pData, false)
+    end)
 end
 
 -- ==================== 3. 1px 磨砂黑玻璃「自定义技能详情悬浮窗」 ====================

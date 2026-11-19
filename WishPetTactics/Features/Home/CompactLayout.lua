@@ -692,7 +692,12 @@ local function MakePetRow(parent, index)
         pBtn:SetScript("OnLeave", function()
             HidePetTip(false)
         end)
-        pBtn:SetScript("OnMouseUp", nil)
+        pBtn:SetScript("OnMouseUp", function(selfBtn, button)
+            local node = selfBtn.parentRow.node
+            if button == "RightButton" and node and node.nodeType == "TEAM" then
+                ns:ShowSlotThresholdMenu(selfBtn, selfBtn.slotIdx, node.team)
+            end
+        end)
         pBtn:Hide()
         row.teamPetBtns[s] = pBtn
     end

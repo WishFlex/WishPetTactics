@@ -1,5 +1,21 @@
 # 更新说明 / Changelog
 
+## 6.1.87
+
+### 中文
+- 为队伍的每个宠物槽位配置有序备用宠物及各自技能；优先使用符合血量要求的同种宠物，再按备用顺序选择。血量换宠仅在战斗结束后进行。
+- 自动保存血量换宠设置；复活宠物冷却就绪时可切回 1 队及保存的原始宠物。
+- 宠物搜索支持使用中英文逗号组合多个条件，例如“增压，召唤闪电”。
+- 新增更新引导，点击条目可进入相关功能；完整和极简模式侧边栏均可打开更新日志。
+- 优化目标窗口与宠物悬浮卡，减少打开和快速划过宠物时的额外工作，并调整显示设置的间距。
+
+### English
+- Configure ordered backup pets and abilities for each team slot. Eligible duplicates of the same species are prioritized; health-based replacements happen after battle.
+- Save health thresholds immediately and optionally restore team 1 and its saved original pets when Revive Battle Pets becomes ready.
+- Combine pet search terms with Chinese or English commas, such as “Supercharge, Call Lightning”.
+- Added an update guide with links to related features and a sidebar entry in both Full and Minimal modes.
+- Reduced extra work in the target window and when moving across pet tooltips, and tightened display-settings spacing.
+
 ## 6.1.71
 
 ### 中文

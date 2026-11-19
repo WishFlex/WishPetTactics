@@ -218,6 +218,7 @@ local function PrepareQuery(query)
     end
     lastQueryRaw = query
     local normalized = strlower(strtrim(query))
+    normalized = normalized:gsub("，", " "):gsub(",", " ")
     if normalized == "" then
         parsedTokenCount = 0
         return 0

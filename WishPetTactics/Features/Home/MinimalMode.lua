@@ -176,6 +176,12 @@ local function MakePickerRow(picker, index)
             return
         end
         if not self.pet or not self.pet.petID then return end
+        if mouseButton == "LeftButton" and picker.backupCallback then
+            local callback, petID = picker.backupCallback, self.pet.petID
+            ns:CloseMinimalPicker()
+            callback(petID)
+            return
+        end
         if mouseButton == "RightButton" then
             ns:ShowPetContextMenu(self, self.pet)
             return
@@ -188,6 +194,7 @@ local function MakePickerRow(picker, index)
         end
     end)
     row:SetScript("OnDoubleClick", function(self)
+        if picker.backupCallback then return end
         if not self.pet or not self.pet.petID then return end
         if not InCombatLockdown() and not (C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle()) then
             if picker.slot and ns:PutCompactPet(picker.slot, self.pet.petID, picker.mode == "QUEUE") then
@@ -392,10 +399,39 @@ function ns:CloseMinimalPicker()
     if not picker then return end
     picker:Hide()
     picker.search:ClearFocus()
+    if picker.backupCallback then
+        picker.backupCallback = nil
+        picker:SetParent(f)
+        picker:SetFrameStrata("DIALOG")
+        picker:SetFrameLevel(f:GetFrameLevel() + 40)
+        if picker.AnchorToFrame then picker:AnchorToFrame(f) end
+    end
     picker.mode, picker.slot, picker.selectedPetID = nil, nil, nil
     if self.db then self.db.activeTargetSlot = nil end
     if f and f.loadoutCards then self:RefreshLoadoutCabin() end
     if self.RefreshHeaderHubIconStates then self:RefreshHeaderHubIconStates() end
+end
+
+function ns:OpenBackupPetPicker(anchor, callback)
+    local f = self.MainFrame
+    local picker = f and f.minimalPicker
+    if not picker or not anchor or not callback then return false end
+    if picker:IsShown() then self:CloseMinimalPicker() end
+    picker:SetParent(UIParent)
+    picker:SetFrameStrata("FULLSCREEN_DIALOG")
+    local route = self.RoutingModal
+    local routeLevel = route and route:IsVisible() and route:GetFrameLevel() or 0
+    picker:SetFrameLevel(math.max(anchor:GetFrameLevel(), routeLevel, self._topModalLevel or 0) + 20)
+    picker.backupCallback = callback
+    picker.mode, picker.slot, picker.page, picker.selectedPetID = "ALL_PETS", nil, 0, nil
+    picker.search:SetText("")
+    picker.search:ClearFocus()
+    picker:ClearAllPoints()
+    picker:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 5, 0)
+    picker:Show()
+    picker:Raise()
+    self:RefreshMinimalPicker()
+    return true
 end
 
 function ns:CancelMinimalInteraction()
@@ -419,6 +455,7 @@ function ns:OpenMinimalPicker(mode, slot)
     end
     local picker = f.minimalPicker
     if not picker then return end
+    if picker.backupCallback then self:CloseMinimalPicker() end
     if picker:IsShown() and picker.mode == mode and (mode ~= "PETS" or picker.slot == slot) then
         self:CloseMinimalPicker()
         return
@@ -858,6 +895,15 @@ function ns:InitMinimalMode(f, header)
     picker:AnchorToFrame(f)
     picker:Hide()
     f.minimalPicker = picker
+    picker:HookScript("OnHide", function(selfPicker)
+        if selfPicker.backupCallback then
+            selfPicker.backupCallback = nil
+            selfPicker:SetParent(f)
+            selfPicker:SetFrameStrata("DIALOG")
+            selfPicker:SetFrameLevel(f:GetFrameLevel() + 40)
+            selfPicker:AnchorToFrame(f)
+        end
+    end)
 
     picker.title = picker:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     picker.title:SetPoint("TOPLEFT", 10, -14)

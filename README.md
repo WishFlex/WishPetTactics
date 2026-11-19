@@ -4,8 +4,10 @@ WishPetTactics 是《魔兽世界》正式服的宠物对战插件，提供队�
 
 - 给 NPC 绑定多支队伍，按顺序准备出战，并可替换低血量或阵亡的同种宠物。
 - 在目标窗口悬停宠物头像，查看出战技能、品质、等级和属性。
-- 用快捷键执行对战脚本，在 HUD 查看战斗计时、技能和复活冷却。HUD 支持缩放和切换回原生界面。
+- 用快捷键执行对战脚本，在 HUD 查看战斗计时、技能和复活冷却。战斗面板展示敌方技能和队伍信息。
 - 可开启战后换队信息，在屏幕和本地聊天框查看队伍状态。
+- 支持每个槽位配置备用宠物与技能，按血量和顺序在战斗结束后准备队伍。
+- 更新引导显示新功能，侧边栏或 `/wp updates` 可再次打开。
 
 从 [Releases](https://github.com/WishFlex/WishPetTactics/releases) 下载 `WishPetTactics-版本号.zip`，解压到 `World of Warcraft/_retail_/Interface/AddOns/`。确认 `AddOns/WishPetTactics/WishPetTactics.toc` 存在，然后在游戏内启用插件。已登录时可输入 `/reload`。
 

@@ -103,6 +103,14 @@ end
 
 local function ShowRoutePetTooltip(icon)
     if not icon.petName then return end
+    if icon.petID and ns.SearchFilter and ns.SearchFilter.GetPetBreed then
+        icon.breed = ns.SearchFilter:GetPetBreed(icon.petID, icon.speciesID, icon.maxHealth, icon.power, icon.speed, icon.level, icon.rarity)
+    end
+    local abilities = icon.abilities
+    if icon.speciesID and icon.speciesID > 0 and ns.AutoRouting and ns.AutoRouting.ValidateAbilitiesForSpecies then
+        local hasAny = abilities and ((tonumber(abilities[1]) or 0) > 0 or (tonumber(abilities[2]) or 0) > 0 or (tonumber(abilities[3]) or 0) > 0)
+        if not hasAny then abilities = ns.AutoRouting:ValidateAbilitiesForSpecies(icon.speciesID, abilities) end
+    end
     local quality = Theme.QualityColors[icon.rarity]
     local portrait = icon.petTexture or QUESTION_ICON
     local lines = {
@@ -132,7 +140,7 @@ local function ShowRoutePetTooltip(icon)
 
     local abilityParts = {}
     for idx = 1, 3 do
-        local abilityID = icon.abilities and tonumber(icon.abilities[idx])
+        local abilityID = abilities and tonumber(abilities[idx])
         if abilityID and abilityID > 0 then
             local info = routeAbilityInfo[abilityID]
             if not info then
@@ -155,7 +163,7 @@ end
 
 local function ScheduleRoutePetTooltip(icon)
     HideRoutePetTooltip(icon)
-    icon._hoverTimer = C_Timer.NewTimer(0.12, function()
+    icon._hoverTimer = C_Timer.NewTimer(0.25, function()
         icon._hoverTimer = nil
         if icon:IsVisible() and icon:IsMouseOver() then ShowRoutePetTooltip(icon) end
     end)
@@ -168,21 +176,10 @@ local function RenderRoutePetIcon(icon, texture, petID, name, missing, level, pe
     end
     local health, maxHealth, power, speed, rarity
     if petID then health, maxHealth, power, speed, rarity = C_PetJournal.GetPetStats(petID) end
-    local breed
-    if petID and ns.SearchFilter and ns.SearchFilter.GetPetBreed then
-        breed = ns.SearchFilter:GetPetBreed(petID, speciesID, maxHealth, power, speed, level, rarity)
-    end
-    local resolvedAbilities = abilities
-    if speciesID and speciesID > 0 and ns.AutoRouting and ns.AutoRouting.ValidateAbilitiesForSpecies then
-        local hasAny = resolvedAbilities and ((tonumber(resolvedAbilities[1]) or 0) > 0 or (tonumber(resolvedAbilities[2]) or 0) > 0 or (tonumber(resolvedAbilities[3]) or 0) > 0)
-        if not hasAny then
-            resolvedAbilities = ns.AutoRouting:ValidateAbilitiesForSpecies(speciesID, resolvedAbilities)
-        end
-    end
     local dead = health ~= nil and health <= 0
     icon.petName, icon.missing, icon.level = name, missing, level
-    icon.health, icon.maxHealth, icon.power, icon.speed, icon.rarity, icon.breed = health, maxHealth, power, speed, rarity, breed
-    icon.petTexture, icon.petType, icon.speciesID, icon.abilities = texture, petType, speciesID, resolvedAbilities
+    icon.health, icon.maxHealth, icon.power, icon.speed, icon.rarity, icon.breed = health, maxHealth, power, speed, rarity, nil
+    icon.petID, icon.petTexture, icon.petType, icon.speciesID, icon.abilities = petID, texture, petType, speciesID, abilities
 
     if icon._lastTex ~= texture then
         icon._lastTex = texture
@@ -609,10 +606,14 @@ function ns:ShowRoutingModal(standalone, preferTeam)
 
             tr.petIcons = {}
             for s = 1, 3 do
+                local s = s
                 local pIcon = Theme:CreateCroppedIcon(tr, 26)
                 pIcon:SetPoint("RIGHT", -72 - (3 - s) * 29, 1)
-                pIcon:EnableMouse(false)
+                pIcon:EnableMouse(true)
                 pIcon:SetMouseMotionEnabled(true)
+                pIcon:SetScript("OnMouseUp", function(_, button)
+                    if button == "RightButton" and tr.tObj then ns:ShowSlotThresholdMenu(pIcon, s, tr.tObj) end
+                end)
                 pIcon:SetScript("OnEnter", ScheduleRoutePetTooltip)
                 pIcon:SetScript("OnLeave", HideRoutePetTooltip)
                 pIcon:SetScript("OnHide", HideRoutePetTooltip)

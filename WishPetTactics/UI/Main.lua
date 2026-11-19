@@ -416,7 +416,7 @@ function ns:ToggleDisplaySettings(button)
     if not ns.DisplaySettingsPanel then
         local panel = CreateFrame("Frame", "WishPetTacticsDisplaySettingsPanel", ns.MainFrame, "BackdropTemplate")
         panel:Hide()
-        panel:SetSize(276, 316)
+        panel:SetSize(276, 242)
         panel:SetFrameStrata("FULLSCREEN_DIALOG")
         panel:SetClampedToScreen(true)
         panel:EnableMouse(true)
@@ -515,7 +515,7 @@ function ns:ToggleDisplaySettings(button)
         panel.styleKey = styleKey
 
         local petCardHoverToggle = Theme:CreateFlatButton(panel, 252, 26, "", nil, "LEFT")
-        petCardHoverToggle:SetPoint("TOPLEFT", 12, ROW_START_Y - 5 * ROW_STEP_Y)
+        petCardHoverToggle:SetPoint("TOPLEFT", 12, ROW_START_Y - 4 * ROW_STEP_Y)
         petCardHoverToggle:SetScript("OnClick", function(_, mouseButton)
             if mouseButton ~= "LeftButton" then return end
             local settings = ns.db.settings
@@ -528,9 +528,9 @@ function ns:ToggleDisplaySettings(button)
             panel:Refresh()
         end)
 
-        -- 第 8 行：恢复默认显示设置
+        -- 第 6 行：恢复默认显示设置
         local reset = Theme:CreateActionButton(panel, 252, 26, "恢复默认显示设置", "restore", nil, nil, false, "LEFT")
-        reset:SetPoint("TOPLEFT", 12, ROW_START_Y - 7 * ROW_STEP_Y)
+        reset:SetPoint("TOPLEFT", 12, ROW_START_Y - 5 * ROW_STEP_Y)
         reset:SetScript("OnClick", function(_, mouseButton)
             if mouseButton ~= "LeftButton" then return end
             ns.db.settings.uiAutoScale = true
@@ -621,6 +621,7 @@ function ns:RefreshActionSidebarLayout()
     Place(f.scriptHubBtn)
     Place(f.displaySettingsBtn)
     Place(f.viewModeToggle)
+    Place(f.updateGuideBtn)
     if sidebar._dividerY ~= y then
         sidebar._dividerY = y
         sidebar.divider:ClearAllPoints()
@@ -872,6 +873,7 @@ function ns:CreateMainFrame(startHidden)
         RegisterMainFrameActiveEvents(self)
         ns:UpdateHeaderToolButtons()
         ns.Leveling:RefreshSelectedSlot()
+        C_Timer.After(0.3, function() if ns.MaybeShowUpdateGuide then ns:MaybeShowUpdateGuide() end end)
     end)
 
     f:SetScript("OnHide", function(self)
@@ -886,6 +888,7 @@ function ns:CreateMainFrame(startHidden)
             ns:UpdateLoadoutSlotDragVisuals()
         end
         if ns.DisplaySettingsPanel then ns.DisplaySettingsPanel:Hide() end
+        if ns.UpdateGuide then ns.UpdateGuide:Hide() end
         if self.compactAbilityPopup then self.compactAbilityPopup:Hide() end
         if self.minimalPicker then self.minimalPicker:Hide() end
         if ns.UIStyleKeyCapture then ns.UIStyleKeyCapture:Hide() end
@@ -1024,6 +1027,7 @@ function ns:CreateMainFrame(startHidden)
             UpdateEscapeInput()
             ns.Leveling:RefreshSelectedSlot()
             ns:RefreshHomeView()
+            if ns.MaybeShowUpdateGuide then ns:MaybeShowUpdateGuide() end
         elseif event == "BAG_UPDATE_DELAYED" then
             bagCache.dirty = true
             RequestHeaderToolUpdate()
@@ -1220,6 +1224,11 @@ function ns:CreateMainFrame(startHidden)
     end)
     f.displaySettingsBtn = displayBtn
 
+    local updatesBtn = Theme:CreateHeaderHubIcon(sidebar, "updates", "更新日志", "UpdateGuide", 0.39, 0.80, 1.00, Theme.ActionSidebar.iconSize)
+    updatesBtn._hubTooltipAnchor = "ANCHOR_RIGHT"
+    updatesBtn:SetScript("OnClick", function() if ns.ShowUpdateGuide then ns:ShowUpdateGuide() end end)
+    f.updateGuideBtn = updatesBtn
+
     local function UpdateSecureIconInset(btn)
         local px = Theme:GetPixelScale(btn)
         if btn._lastInsetPx == px or not btn.icon then return end
@@ -1365,6 +1374,7 @@ function ns:CreateMainFrame(startHidden)
     end
 
     ns.MainFrame = f
+    if f:IsShown() then C_Timer.After(0.3, function() if ns.MaybeShowUpdateGuide then ns:MaybeShowUpdateGuide() end end) end
     self:SwitchMainViewMode("HOME")
     return f
 end

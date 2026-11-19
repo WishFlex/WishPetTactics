@@ -1920,6 +1920,38 @@ end
 
 local scratchUsedPets = {}
 
+function ns.AutoRouting:FindSlotBackup(team, slot, usedPets, threshold, requireHealthy)
+    local list = team.slotBackups and team.slotBackups[slot]
+    if not list then return nil end
+    for _, entry in ipairs(list) do
+        local ids, levels = ns:GetSortedPetAbilities(entry.speciesID)
+        local function usable(petID)
+            if not petID or usedPets[petID] then return false end
+            local species, _, level = C_PetJournal.GetPetInfoByPetID(petID)
+            if species ~= entry.speciesID then return false end
+            local hp, maxHp = C_PetJournal.GetPetStats(petID)
+            if not ((requireHealthy and ns:IsPetHealthyForLoadout(hp, maxHp, threshold)) or (not requireHealthy and hp and hp > 0)) then return false end
+            for col = 1, 3 do
+                local wanted = entry.abilities and entry.abilities[col]
+                if wanted and wanted > 0 then
+                    local first, second = ids and ids[col], ids and ids[col + 3]
+                    local index = wanted == first and col or wanted == second and col + 3 or nil
+                    if not index or (levels and levels[index] and (level or 0) < levels[index]) then return false end
+                end
+            end
+            return true
+        end
+        if usable(entry.petID) then return entry.petID, entry.abilities end
+        local cache = ns.GetPetJournalCache and ns:GetPetJournalCache()
+        local candidates = cache and cache.bySpecies[entry.speciesID]
+        if candidates then
+            for i = 1, #candidates do
+                if usable(candidates[i]) then return candidates[i], entry.abilities end
+            end
+        end
+    end
+end
+
 function ns.AutoRouting:CanTeamFight(team, requireHealthy, evaluation)
     if not team then return false end
     wipe(scratchUsedPets)
@@ -1971,6 +2003,13 @@ function ns.AutoRouting:CanTeamFight(team, requireHealthy, evaluation)
                     end
                 end
                 if not slotReady then
+                    local backupID = self:FindSlotBackup(team, slot, scratchUsedPets, slotTh, requireHealthy)
+                    if backupID then
+                        slotReady = true
+                        scratchUsedPets[backupID] = true
+                    end
+                end
+                if not slotReady then
                     return false
                 end
             end
@@ -1998,7 +2037,7 @@ function ns.AutoRouting:GetResolvedRandomPet(team, slot)
     return resolved and resolved[slot]
 end
 
-function ns.AutoRouting:ApplyTeamData(team, requireHealthyRandom, evaluation, deferRefresh)
+function ns.AutoRouting:ApplyTeamData(team, requireHealthyRandom, evaluation, deferRefresh, restoreOriginal)
     if not team or InCombatLockdown() or (C_PetBattles and C_PetBattles.IsInBattle()) then return end
 
     ns.staging.isDirty = false
@@ -2014,7 +2053,7 @@ function ns.AutoRouting:ApplyTeamData(team, requireHealthyRandom, evaluation, de
     for slot = 1, 3 do
         slotEquipTokens[slot] = slotEquipTokens[slot] + 1
     end
-    local plannedPets = {}
+    local plannedPets, plannedAbilities = {}, {}
     wipe(applyUsedPetsScratch)
     local lvSlot = team.levelingSlot or ns.db.settings.levelingSlot or 2
     local restoredLoadout = ns.staging.revertLoadout
@@ -2066,7 +2105,12 @@ function ns.AutoRouting:ApplyTeamData(team, requireHealthyRandom, evaluation, de
 
             local finalPetID = nil
 
-            if savedPetID and savedPetID ~= "LEVELING" and not applyUsedPetsScratch[savedPetID] then
+            if restoreOriginal and savedPetID and savedPetID ~= "LEVELING" and not applyUsedPetsScratch[savedPetID]
+                and C_PetJournal.GetPetInfoByPetID(savedPetID) == targetSpeciesID then
+                finalPetID = savedPetID
+            end
+
+            if not finalPetID and savedPetID and savedPetID ~= "LEVELING" and not applyUsedPetsScratch[savedPetID] then
                 local hp, maxHp = C_PetJournal.GetPetStats(savedPetID)
                 if hp and hp > 0 then
                     if ns.db.settings.autoSwapHealthyDup == false or ns:IsPetHealthyForLoadout(hp, maxHp, slotTh) then
@@ -2077,6 +2121,10 @@ function ns.AutoRouting:ApplyTeamData(team, requireHealthyRandom, evaluation, de
 
             if not finalPetID and targetSpeciesID > 0 then
                 finalPetID = self:FindBestHealthyDuplicate(targetSpeciesID, applyUsedPetsScratch, slotTh, false)
+
+                if not finalPetID then
+                    finalPetID, plannedAbilities[slot] = self:FindSlotBackup(team, slot, applyUsedPetsScratch, slotTh, true)
+                end
 
                 if not finalPetID then
                     if savedPetID and savedPetID ~= "LEVELING" and not applyUsedPetsScratch[savedPetID] then
@@ -2090,6 +2138,9 @@ function ns.AutoRouting:ApplyTeamData(team, requireHealthyRandom, evaluation, de
                     finalPetID = self:FindBestHealthyDuplicate(targetSpeciesID, applyUsedPetsScratch, slotTh, true)
                 end
                 if not finalPetID then
+                    finalPetID, plannedAbilities[slot] = self:FindSlotBackup(team, slot, applyUsedPetsScratch, slotTh, false)
+                end
+                if not finalPetID then
                     finalPetID = self:FindAnyCollectedPetForSpecies(targetSpeciesID, applyUsedPetsScratch)
                 end
             end
@@ -2099,9 +2150,6 @@ function ns.AutoRouting:ApplyTeamData(team, requireHealthyRandom, evaluation, de
             end
 
             if finalPetID then
-                if team.pets then
-                    team.pets[slot] = finalPetID
-                end
                 applyUsedPetsScratch[finalPetID] = true
                 plannedPets[slot] = finalPetID
             end
@@ -2129,7 +2177,7 @@ function ns.AutoRouting:ApplyTeamData(team, requireHealthyRandom, evaluation, de
         local leveling = team.hasLevelingSlot and slot == lvSlot
         if restored and not leveling then petID = restored.petID end
         if petID then
-            local abilities = restored and restored.abilities or not randomSlot and team.abilities and team.abilities[slot] or nil
+            local abilities = restored and restored.abilities or plannedAbilities[slot] or not randomSlot and team.abilities and team.abilities[slot] or nil
             if slot == 1 then
                 self:EquipPetAndSyncSkills(slot, petID, abilities)
             else
@@ -2423,7 +2471,14 @@ function ns.AutoRouting:IsCurrentLoadoutHealthyAndReady(team)
             if expectedSpID > 0 then
                 local curSpID = C_PetJournal.GetPetInfoByPetID(petID) or 0
                 if curSpID ~= expectedSpID then
-                    return false
+                    local matched = false
+                    local list = team.slotBackups and team.slotBackups[slot]
+                    if list then
+                        for _, entry in ipairs(list) do
+                            if entry.speciesID == curSpID then matched = true; break end
+                        end
+                    end
+                    if not matched then return false end
                 end
             end
         end
@@ -2706,20 +2761,26 @@ function ns.AutoRouting:EnsurePreparedRouteAndTeam(targetChanged)
         if route.reviveLoadTeam1 ~= false and ns:IsRevivePetCooldownReady() then
             targetTeam = self:FindTeamByName(route.teams[1])
         end
-        if targetTeam and targetTeam == currentTeam and self:IsCurrentLoadoutHealthyAndReady(currentTeam) then
+        if targetTeam and ns._reviveHoldRouteKey == rKey and not ns._reviveResetPending then return end
+        local resetPriority = targetTeam and ns._reviveResetPending
+        if targetTeam and targetTeam == currentTeam and not resetPriority and self:IsCurrentLoadoutHealthyAndReady(currentTeam) then
             return
         end
-        self:LoadTeamWithFallbackChain(route.teams[1], route)
+        local loaded = self:LoadTeamWithFallbackChain(route.teams[1], route, nil, resetPriority)
+        if loaded and resetPriority then ns._reviveHoldRouteKey = rKey end
+        ns._reviveResetPending = nil
         return
     end
 
     if currentTeam then
-        if self:IsCurrentLoadoutHealthyAndReady(currentTeam) then
+        local resetPriority = ns._reviveResetPending
+        ns._reviveResetPending = nil
+        if not resetPriority and self:IsCurrentLoadoutHealthyAndReady(currentTeam) then
             return
         end
         local evaluation = {}
-        if self:CanTeamFight(currentTeam, true, evaluation) then
-            self:ApplyTeamData(currentTeam, true, evaluation)
+        if resetPriority or self:CanTeamFight(currentTeam, true, evaluation) then
+            self:ApplyTeamData(currentTeam, true, evaluation, nil, resetPriority)
         else
             local curGroup = currentTeam.group or "未分组队伍"
             for idx, candTeam in ipairs(ns.db.teams) do
@@ -2756,7 +2817,11 @@ local function BattleTeamSequence(team, route)
     return "|cffffd100" .. tostring(ns.db.selectedTeamIdx or 1) .. "|r"
 end
 
-function ns.AutoRouting:LoadTeamWithFallbackChain(startTeamName, routeObj, deferRefresh)
+function ns.AutoRouting:LoadTeamWithFallbackChain(startTeamName, routeObj, deferRefresh, resetPriority)
+    if routeObj and ns._reviveHoldRouteKey and ns.db.routeMappings
+        and ns.db.routeMappings[ns._reviveHoldRouteKey] == routeObj and ns:IsRevivePetCooldownReady() then
+        resetPriority = true
+    end
     local evaluation = {}
     wipe(fallbackCandScratch)
     wipe(fallbackVisitedScratch)
@@ -2783,7 +2848,7 @@ function ns.AutoRouting:LoadTeamWithFallbackChain(startTeamName, routeObj, defer
         local canApplyNow = not InCombatLockdown()
             and not (C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle())
         ns.db.selectedTeamIdx = teamIndex
-        self:ApplyTeamData(team, requireHealthy, evaluation, deferRefresh)
+        self:ApplyTeamData(team, requireHealthy, evaluation, deferRefresh, resetPriority and team == self:FindTeamByName(fallbackCandScratch[1]))
         if canApplyNow and team ~= curTeam and ns.ShowUIFeedback and not ns._battleEndReportPending then
             ns:ShowUIFeedback(ns:TF("已切换到 %s 号队伍", BattleTeamSequence(team, routeObj)))
         end
@@ -2791,8 +2856,8 @@ function ns.AutoRouting:LoadTeamWithFallbackChain(startTeamName, routeObj, defer
     local checkReviveTeam1 = (routeObj ~= nil) and (routeObj.reviveLoadTeam1 ~= false)
     if checkReviveTeam1 and ns:IsRevivePetCooldownReady() then
         local team1, tIdx1 = self:FindTeamByName(fallbackCandScratch[1])
-        if team1 and (not IsInScenario() or self:CanTeamFight(team1, true, evaluation)) then
-            if curTeam == team1 and self:IsCurrentLoadoutHealthyAndReady(team1) then
+        if team1 and (resetPriority or not IsInScenario() or self:CanTeamFight(team1, true, evaluation)) then
+            if not resetPriority and curTeam == team1 and self:IsCurrentLoadoutHealthyAndReady(team1) then
                 return true
             end
             ApplyTeamAndNotify(team1, tIdx1, IsInScenario())
@@ -4474,7 +4539,6 @@ function ns.ScriptEngine:ExecuteStep()
     end
 
     local activeHP = C_PetBattles.GetHealth(owner, activeSlot) or 0
-    local activeMaxHP = C_PetBattles.GetMaxHealth(owner, activeSlot) or 1
     local needPetSwap = (activeHP <= 0) or (C_PetBattles.ShouldShowPetSelect and C_PetBattles.ShouldShowPetSelect())
 
     if not needPetSwap and C_PetBattles.IsSkipAvailable and not C_PetBattles.IsSkipAvailable() then
@@ -4482,22 +4546,6 @@ function ns.ScriptEngine:ExecuteStep()
     end
 
     local team = ns.db.teams[ns.db.selectedTeamIdx]
-    local slotThreshold = ns:GetSlotThreshold(team, activeSlot)
-    if not needPetSwap and slotThreshold and slotThreshold > 0 and not ns:IsPetHealthyForThreshold(activeHP, activeMaxHP, slotThreshold) then
-        for offset = 1, 2 do
-            local nextSlot = ((activeSlot - 1 + offset) % 3) + 1
-            local nextTh = ns:GetSlotThreshold(team, nextSlot)
-            local nextHP = C_PetBattles.GetHealth(owner, nextSlot) or 0
-            local nextMaxHP = C_PetBattles.GetMaxHealth(owner, nextSlot) or 1
-            if self:CanSwapToSlot(nextSlot) and ns:IsPetHealthyForThreshold(nextHP, nextMaxHP, nextTh) then
-                C_PetBattles.ChangePet(nextSlot)
-                local desc = (slotThreshold <= 100) and (slotThreshold .. "%") or (slotThreshold .. "HP")
-                self:AddLog(string.format("#%d HP Swap(<=%s) -> |cff10b981#%d|r", activeSlot, desc, nextSlot))
-                return
-            end
-        end
-    end
-
     local ops = self:GetCompiledOps((team and team.script) or "use(1)")
     local stackDepth = 0
     local currentActive = true
@@ -4803,7 +4851,11 @@ local function ThrottledEnsurePrepared(delay)
         local now = GetTime()
         if now < due then C_Timer.After(due - now, Run); return end
         pendingAutoCheckDue[delay] = nil
-        if now - lastAutoCheckTime < 0.25 then return end
+        if now - lastAutoCheckTime < 0.25 then
+            pendingAutoCheckDue[delay] = lastAutoCheckTime + 0.25
+            C_Timer.After(math.max(0.01, pendingAutoCheckDue[delay] - now), Run)
+            return
+        end
         lastAutoCheckTime = now
         if ns.db and ns.db.settings.autoLoadTarget and not IsInRestrictedCombatInstance() then
             ns.AutoRouting:EnsurePreparedRouteAndTeam()
@@ -4865,6 +4917,23 @@ engineFrame:RegisterEvent("PLAYER_XP_UPDATE")
 local wasReviveReady = true
 local lastCooldownPollTime = 0
 local inRoundPlayback = false
+local reviveTimer
+local function ScheduleReviveReadyCheck()
+    if reviveTimer then reviveTimer:Cancel(); reviveTimer = nil end
+    local remaining = ns:GetRevivePetCooldownRemain()
+    if remaining <= 0 then return end
+    reviveTimer = C_Timer.NewTimer(remaining + 0.2, function()
+        reviveTimer = nil
+        local left = ns:GetRevivePetCooldownRemain()
+        if left > 0 then ScheduleReviveReadyCheck(); return end
+        if not wasReviveReady then
+            wasReviveReady = true
+            ns._reviveResetPending = true
+            if ns.ShowUIFeedback then ns:ShowUIFeedback("|cffff4040" .. ns:T("复活战斗宠物已就绪") .. "|r") end
+            ThrottledEnsurePrepared(0.3)
+        end
+    end)
+end
 
 -- Use stable battle-level identifiers so reload recovery succeeds regardless of mid-turn HP/slot state.
 local function BattleReloadSignature()
@@ -5067,6 +5136,10 @@ engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
         ns.BattleStats.lastPlayerMaxXP = math.max(1, (not ns:IsSecretValue(uMax) and tonumber(uMax)) or 1)
         ns.BattleStats.lastPlayerLevel = (not ns:IsSecretValue(uLv) and tonumber(uLv)) or 1
         wasReviveReady = ns:IsRevivePetCooldownReady()
+        if wasReviveReady and not (C_PetBattles and C_PetBattles.IsInBattle()) then
+            ns._reviveResetPending = true
+        end
+        ScheduleReviveReadyCheck()
         if not IsInRestrictedCombatInstance() then
             ThrottledEnsurePrepared(1.2)
         elseif ns.DungeonStageBar then
@@ -5255,6 +5328,8 @@ engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
             local s2 = not ns:IsSecretValue(arg2) and arg2 or nil
             local s3 = not ns:IsSecretValue(arg3) and arg3 or nil
             if s3 == REVIVE_PETS_SPELL_ID or s2 == REVIVE_PETS_SPELL_ID then
+                ns._reviveHoldRouteKey = nil
+                ns._reviveResetPending = true
                 ThrottledEnsurePrepared(0.45)
                 C_Timer.After(0.35, function()
                     if ns.RefreshAllUI then ns:RefreshAllUI(true) end
@@ -5272,8 +5347,10 @@ engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
 
         if not inPetBattle then
             local nowReady = ns:IsRevivePetCooldownReady()
+            if not nowReady then ScheduleReviveReadyCheck() end
             if nowReady and not wasReviveReady then
                 wasReviveReady = true
+                ns._reviveResetPending = true
                 if ns.ShowUIFeedback then ns:ShowUIFeedback("|cffff4040" .. ns:T("复活战斗宠物已就绪") .. "|r") end
                 ThrottledEnsurePrepared(0.3)
             else
@@ -5289,6 +5366,7 @@ engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
         end
 
     elseif event == "PET_BATTLE_OPENING_START" then
+        ns._reviveHoldRouteKey = nil
         if ns.ScriptEngine.resumedBattle then return end
         if ns.DungeonStageBar then ns.DungeonStageBar:Hide() end
         SnapshotBattleStartStats()

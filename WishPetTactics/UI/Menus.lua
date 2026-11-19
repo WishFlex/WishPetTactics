@@ -592,8 +592,8 @@ function ns:ShowChangeTeamTargetModal(teamObj, sourceRouteKey)
 end
 
 -- ==================== 1. 出战槽位右键面板（静态事件 + 拖拽值变更短路防卡顿） ====================
-function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
-    if ns.SlotContextMenu and ns.SlotContextMenu:IsShown() and ns.SlotContextMenu.slotIndex == slotIndex then
+function ns:ShowSlotThresholdMenu(anchorCard, slotIndex, targetTeam)
+    if ns.SlotContextMenu and ns.SlotContextMenu:IsShown() and ns.SlotContextMenu.slotIndex == slotIndex and ns.SlotContextMenu.targetTeam == targetTeam then
         ns:HideAllPopups()
         return
     end
@@ -665,10 +665,37 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
         Theme:HookLocalizedFontString(tipTxt)
         tipTxt:SetText(ns:T("拖动生命条，或输入百分比（40%）／生命值（450）"))
 
+        sm.backupBtn = Theme:CreateFlatButton(sm, 212, 24, ns.locale == "zhTW" and "指定備用寵物和技能" or ns.locale == "zhCN" and "指定备用宠物和技能" or "Configure backup pets and abilities", nil, "LEFT")
+        sm.backupBtn:SetPoint("TOPLEFT", 10, -169)
+        sm.backupBtn:SetScript("OnClick", function()
+            local team = sm.targetTeam or (ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx])
+            local slot = sm.slotIndex
+            if team and slot and ns:GetSlotThreshold(team, slot) > 0 then
+                ns:HideAllPopups()
+                ns:ShowSlotBackups(team, slot)
+            end
+        end)
+
+        local function MenuTeam()
+            return sm.targetTeam or (ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx])
+        end
+        local function SetMenuThreshold(team, slot, value)
+            local active = ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx]
+            if team and team ~= active then
+                if not team.slotThresholds then
+                    team.slotThresholds = {}
+                    for i = 1, 3 do team.slotThresholds[i] = ns:GetSlotThreshold(team, i) end
+                end
+                team.slotThresholds[slot] = value
+            else
+                ns:SetHomeSlotThreshold(team, slot, value)
+            end
+        end
+
         function sm:UpdateThresholdVisuals()
             local f = ns.MainFrame
-            local draft = f and f.compactDraft
-            local team = not draft and ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx]
+            local draft = not self.targetTeam and f and f.compactDraft
+            local team = not draft and MenuTeam()
             local sIdx = self.slotIndex or 1
             local maxHP = self.maxHP or 1400
             local curTh = ns:GetSlotThreshold(team, sIdx)
@@ -684,12 +711,15 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
 
             local hpEnabled = (curTh and curTh > 0)
             self.hpSwitch:SetState(hpEnabled)
+            local canConfigure = hpEnabled and team and not draft and not isLv and not (team.randomSlots and team.randomSlots[sIdx] ~= nil)
+            self.backupBtn:SetShown(canConfigure and true or false)
 
             if hpEnabled then
                 self.hpDrawer:Show()
-                if self._lastH ~= 176 then
-                    self._lastH = 176
-                    self:SetHeight(176)
+                local height = canConfigure and 200 or 176
+                if self._lastH ~= height then
+                    self._lastH = height
+                    self:SetHeight(height)
                 end
                 if curTh <= 100 then
                     local exactHP = math.floor(maxHP * (curTh / 100) + 0.5)
@@ -720,6 +750,31 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
         sm.lvSwitch:SetScript("OnClick", function()
             local sIdx = sm.slotIndex
             if not sIdx or InCombatLockdown() or (C_PetBattles and C_PetBattles.IsInBattle()) then return end
+            local active = ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx]
+            if sm.targetTeam and sm.targetTeam ~= active then
+                local team = sm.targetTeam
+                local oldSlot = team.hasLevelingSlot and (team.levelingSlot or 2)
+                if oldSlot then
+                    local fallback = team.levelingFallback
+                    team.pets = team.pets or {}
+                    team.speciesLoadout = team.speciesLoadout or {}
+                    team.abilities = team.abilities or {}
+                    team.pets[oldSlot] = fallback and fallback.petID or nil
+                    team.speciesLoadout[oldSlot] = fallback and fallback.speciesID or 0
+                    team.abilities[oldSlot] = fallback and fallback.abilities or {0, 0, 0}
+                    team.hasLevelingSlot, team.levelingFallback = false, nil
+                end
+                if oldSlot ~= sIdx then
+                    ns.Leveling:CaptureSlotFallback(team, sIdx, true)
+                    team.hasLevelingSlot, team.levelingSlot = true, sIdx
+                    team.pets = team.pets or {}
+                    team.speciesLoadout = team.speciesLoadout or {}
+                    team.pets[sIdx], team.speciesLoadout[sIdx] = "LEVELING", 0
+                end
+                sm:UpdateThresholdVisuals()
+                if ns.RefreshAllUI then ns:RefreshAllUI() end
+                return
+            end
             local f = ns.MainFrame
             local draft = f and f.compactDraft
             if draft then
@@ -734,7 +789,7 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
                 RefreshPetDrawerAndUI(false)
                 return
             end
-            local team = ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx]
+            local team = MenuTeam()
             if not team and ns.db and ns.db.teams and #ns.db.teams > 0 then
                 ns.db.selectedTeamIdx = 1
                 team = ns.db.teams[1]
@@ -775,11 +830,11 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
         end)
 
         sm.hpSwitch:SetScript("OnClick", function()
-            local team = ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx]
+            local team = MenuTeam()
             local sIdx = sm.slotIndex
             if not sIdx then return end
             local curTh = ns:GetSlotThreshold(team, sIdx)
-            ns:SetHomeSlotThreshold(team, sIdx, (curTh and curTh > 0) and 0 or 40)
+            SetMenuThreshold(team, sIdx, (curTh and curTh > 0) and 0 or 40)
             sm:UpdateThresholdVisuals()
             if ns.RefreshLoadoutCabin then ns:RefreshLoadoutCabin() end
         end)
@@ -793,9 +848,9 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
             local cx = GetCursorPosition() / dragBar:GetEffectiveScale()
             if left and width and width > 0 then
                 local pct = math.floor(math.max(5, math.min(95, ((cx - left) / width) * 100)) + 0.5)
-                local team = ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx]
+                local team = MenuTeam()
                 if ns:GetSlotThreshold(team, sm.slotIndex) ~= pct then
-                    ns:SetHomeSlotThreshold(team, sm.slotIndex, pct)
+                    SetMenuThreshold(team, sm.slotIndex, pct)
                     sm:UpdateThresholdVisuals()
                     if ns.RefreshLoadoutCabin then ns:RefreshLoadoutCabin() end
                 end
@@ -816,7 +871,7 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
         end)
 
         local function CommitBoxInput(self)
-            local team = ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx]
+            local team = MenuTeam()
             local sIdx = sm.slotIndex
             if not sIdx then return end
             local raw = strtrim(self:GetText() or "")
@@ -824,12 +879,12 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
             local num = tonumber((string.gsub(raw, "[^%d]", "")))
             if num and num > 0 then
                 if isPct or num <= 100 then
-                    ns:SetHomeSlotThreshold(team, sIdx, math.max(1, math.min(99, num)))
+                    SetMenuThreshold(team, sIdx, math.max(1, math.min(99, num)))
                 else
-                    ns:SetHomeSlotThreshold(team, sIdx, num)
+                    SetMenuThreshold(team, sIdx, num)
                 end
             else
-                ns:SetHomeSlotThreshold(team, sIdx, 0)
+                SetMenuThreshold(team, sIdx, 0)
             end
             self:ClearFocus()
             sm:UpdateThresholdVisuals()
@@ -844,11 +899,20 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex)
 
     local sm = ns.SlotContextMenu
     sm.slotIndex = slotIndex
+    sm.targetTeam = targetTeam
     if ns.MainFrame then
         sm:SetScale(ns.MainFrame:GetEffectiveScale() / UIParent:GetEffectiveScale())
     end
 
     local pData = anchorCard and anchorCard.petData
+    if targetTeam and not pData then
+        local petID = targetTeam.pets and targetTeam.pets[slotIndex]
+        if petID and petID ~= "LEVELING" then
+            local _, custom, _, _, _, _, _, name = C_PetJournal.GetPetInfoByPetID(petID)
+            local _, maxHealth = C_PetJournal.GetPetStats(petID)
+            pData = { petID = petID, name = custom or name, maxHealth = maxHealth }
+        end
+    end
     sm.petID = pData and pData.petID
     sm.summonBtn:SetEnabled(sm.petID ~= nil and not InCombatLockdown() and not C_PetBattles.IsInBattle())
     sm.maxHP = (pData and pData.maxHealth and pData.maxHealth > 0) and pData.maxHealth or 1400

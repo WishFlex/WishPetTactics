@@ -41,6 +41,7 @@ local HELP = {
     { "/wp pets", "打开宠物列表" },
     { "/wp queue", "打开练级队列" },
     { "/wp script", "打开脚本编辑器" },
+    { "/wp updates", "查看更新引导" },
     { "/wp learn on|off", "学习开关（旧命令：/wplearn）" },
     { "/wp gossip on|off", "对话诊断（旧命令：/wpgossip）" },
     { "/wp round", "回合诊断（旧命令：/wpround）" },
@@ -109,6 +110,8 @@ function ns:RunSlashCommand(message)
         elseif command == "script" then
             self:CreateMainFrame():Show()
             return self:ToggleScriptWorkspace(true)
+        elseif command == "updates" then
+            return self:ShowUpdateGuide()
         elseif command == "round" then
             return SlashCmdList["WISHROUNDDEBUG"]()
         elseif command == "bind-dialog" then

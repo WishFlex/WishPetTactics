@@ -143,12 +143,18 @@ end
 
 function ns:SetHomeSlotThreshold(team, slot, value)
     if self:GetSlotThreshold(team, slot) == value then return end
-    if team then
-        self:EnsureTeamBackup()
-        self.staging.isDirty = true
-        self.staging.changedSlots = self.staging.changedSlots or {}
-    end
     self:SetSlotThreshold(team, slot, value)
+    -- Thresholds are immediate settings, independent of unsaved loadout edits.
+    -- Keep an existing rollback snapshot in sync so logout or Undo cannot
+    -- silently discard this setting while restoring the rest of the team.
+    local staging = self.staging
+    if team and staging and staging.teamBackup and staging.backupTeamIdx == self.db.selectedTeamIdx
+        and self.db.teams[self.db.selectedTeamIdx] == team then
+        staging.teamBackup.slotThresholds = CopyTable(team.slotThresholds or {})
+        if staging.backupSlotDefaults then
+            staging.backupSlotDefaults.thresholds = CopyTable(self.db.defaultSlotThresholds or {})
+        end
+    end
 end
 
 function ns:SaveStagingToCurrentTeam()
@@ -1504,7 +1510,10 @@ function ns:ShowTeamMatrixModal()
                     SafeHidePetDetail(false)
                 end)
                 pBtn:SetScript("OnMouseUp", function(selfBtn, button)
-                    if button == "LeftButton" then
+                    if button == "RightButton" then
+                        local node = selfBtn.parentRow.node
+                        if node and node.nodeType == "TEAM" then ns:ShowSlotThresholdMenu(selfBtn, selfBtn.slotIdx, node.team) end
+                    elseif button == "LeftButton" then
                         local node = selfBtn.parentRow.node
                         if node and node.nodeType == "TEAM" then
                             local isActive = (node.teamIndex == ns.db.selectedTeamIdx)
