@@ -1,5 +1,19 @@
 # 更新说明 / Changelog
 
+## 6.1.91
+
+### 中文
+- 宠物右键菜单新增装入笼中选项；可在宠物悬浮详情中查看该种宠物的已收藏数量与上限。
+- 点击新宠物收集提示可打开宠物列表并定位对应宠物。
+- 自动更新引导仅显示本次更新，过去的内容可在侧边栏更新日志中查看。
+- 极简模式的宠物列表和练级队列新增筛选按钮，装笼选项调整到召唤下方。
+
+### English
+- Added a cage option to the pet context menu and collection counts to pet tooltips.
+- Click a new-pet collection alert to open the pet list and locate the pet.
+- The automatic update guide shows current changes; previous updates remain available in the sidebar log.
+- Added filter buttons to the Minimal-mode pet list and leveling queue, and placed the cage option below Summon.
+
 ## 6.1.87
 
 ### 中文

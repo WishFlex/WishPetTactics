@@ -929,6 +929,11 @@ function ns:CreateMainFrame(startHidden)
                     or (ns.ExportChoiceModal and ns.ExportChoiceModal:IsShown() and ns.ExportChoiceModal:IsMouseOver())
                     or (ns.ExportModal and ns.ExportModal:IsShown() and ns.ExportModal:IsMouseOver())
                     or (ns.ImportModal and ns.ImportModal:IsShown() and ns.ImportModal:IsMouseOver())
+                    or (ns.PetFilterMenu and ns.PetFilterMenu:IsShown() and ns.PetFilterMenu:IsMouseOver())
+                    or (ns.PetFilterSubMenu and ns.PetFilterSubMenu:IsShown() and ns.PetFilterSubMenu:IsMouseOver())
+                    or (ns.QueueFilterDrawer and ns.QueueFilterDrawer:IsShown() and ns.QueueFilterDrawer:IsMouseOver())
+                    or (ns.QueueFilterDrawer and ns.QueueFilterDrawer.qSub and ns.QueueFilterDrawer.qSub:IsShown() and ns.QueueFilterDrawer.qSub:IsMouseOver())
+                    or (ns.QueueLevelFilterPopup and ns.QueueLevelFilterPopup:IsShown() and ns.QueueLevelFilterPopup:IsMouseOver())
                 if not overCard and not overMenuOrExport and not (self.minimalTeamLink and self.minimalTeamLink:IsMouseOver()) then
                     ns:CloseMinimalPicker()
                 end

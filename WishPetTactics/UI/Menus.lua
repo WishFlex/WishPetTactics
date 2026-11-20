@@ -1480,7 +1480,7 @@ function ns:ToggleQueueFilterMenu(anchorBtn)
                         hideOnEscape = true,
                         preferredIndex = 3,
                     }
-                    StaticPopup_Show("WISHPETTACTICS_QUEUE_LV_INPUT")
+                    ns.QueueLevelFilterPopup = StaticPopup_Show("WISHPETTACTICS_QUEUE_LV_INPUT")
                     return
                 elseif id == "SORT_RARITY" or id == "SORT_ASC" or id == "SORT_DESC" then
                     local rule = ns.db.settings.levelingRule or "MANUAL"
@@ -1566,7 +1566,8 @@ local PET_MENU_STATIC_LABELS = {
     [7] = "重命名",
     [9] = "加入队列首位",
     [10] = "放生宠物",
-    [11] = "取消",
+    [11] = "装入笼中",
+    [12] = "取消",
 }
 
 function ns:ShowPetContextMenu(anchorRow, petData)
@@ -1628,7 +1629,7 @@ function ns:ShowPetContextMenu(anchorRow, petData)
         ns.PetMarkerSubMenu = markerSub
 
         pm.items = {}
-        for i = 1, 11 do
+        for i = 1, 12 do
             local item = Theme:CreateMenuRow(pm, 154, 23, "")
             item:SetPoint("TOPLEFT", 4, -28 - ((i - 1) * 24))
             item.rowIdx = i
@@ -1738,6 +1739,26 @@ function ns:ShowPetContextMenu(anchorRow, petData)
                     end
                 elseif idx == 11 then
                     ns:HideAllPopups()
+                    if petID and C_PetJournal.PetIsTradable and C_PetJournal.PetIsTradable(petID)
+                        and not InCombatLockdown() and not C_PetBattles.IsInBattle() then
+                        if not StaticPopupDialogs["WISH_PET_TACTICS_CAGE_PET"] then
+                            StaticPopupDialogs["WISH_PET_TACTICS_CAGE_PET"] = {
+                                text = ns.locale == "zhTW" and "將寵物「%s」裝入籠中？" or ns.locale == "zhCN" and "将宠物「%s」装入笼中？" or "Put %s in a cage?",
+                                button1 = ACCEPT, button2 = CANCEL,
+                                OnAccept = function(_, id)
+                                    if id and C_PetJournal.PetIsTradable(id) and not InCombatLockdown()
+                                        and not C_PetBattles.IsInBattle() then
+                                        C_PetJournal.CagePetByID(id)
+                                    end
+                                end,
+                                timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+                            }
+                        end
+                        local dlg = StaticPopup_Show("WISH_PET_TACTICS_CAGE_PET", pData.customName or pData.name or ns:T("宠物"))
+                        if dlg then dlg.data = petID end
+                    end
+                elseif idx == 12 then
+                    ns:HideAllPopups()
                 end
             end)
 
@@ -1775,12 +1796,15 @@ function ns:ShowPetContextMenu(anchorRow, petData)
     pm.items[9].text:SetText(ns:T(inQueue and "移出练级队列" or "加入队列首位"))
 
     local visibleRows = 0
-    for i, item in ipairs(pm.items) do
+    for _, i in ipairs({1, 11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12}) do
+        local item = pm.items[i]
         local visible = true
         if i == 9 then
             visible = (petID ~= nil and (petData.level or 25) < 25)
         elseif i == 10 then
             visible = (petID ~= nil and C_PetJournal and C_PetJournal.PetCanBeReleased and C_PetJournal.PetCanBeReleased(petID)) and true or false
+        elseif i == 11 then
+            visible = (petID and C_PetJournal.PetIsTradable and C_PetJournal.PetIsTradable(petID)) and true or false
         end
         item:SetShown(visible)
         if visible then

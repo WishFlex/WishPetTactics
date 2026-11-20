@@ -946,7 +946,10 @@ function ns:RenderPetCard(anchorFrame, pData, pinNow)
     card.nameTxt:SetText(string.sub(qCol[4], 1, 10) .. (pData.name or ns:T("宠物")) .. "|r")
 
     local pType = Theme.PetTypes[pData.petType]
-    card.subTxt:SetText(ns:TF("|cffffd100%d级|r  |cff38bdf8[%s]|r  %s", pData.level or 1, pData.breed or "B/B", pType and pType.name or ""))
+    local count, limit
+    if pData.speciesID and pData.speciesID > 0 then count, limit = C_PetJournal.GetNumCollectedInfo(pData.speciesID) end
+    local collection = count and limit and string.format("  |cffffffff%d/%d|r", count, limit) or ""
+    card.subTxt:SetText(ns:TF("|cffffd100%d级|r  |cff38bdf8[%s]|r  %s", pData.level or 1, pData.breed or "B/B", pType and pType.name or "") .. collection)
     if pType then
         card.decal:SetTexture(pType.icon)
         card.decal:Show()

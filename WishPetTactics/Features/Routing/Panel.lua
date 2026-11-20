@@ -123,6 +123,10 @@ local function ShowRoutePetTooltip(icon)
         lines[lineCount] = "|cffff6161" .. ns:T("未拥有此宠物") .. "|r"
     end
     local infoParts = {}
+    if icon.speciesID and icon.speciesID > 0 then
+        local count, limit = C_PetJournal.GetNumCollectedInfo(icon.speciesID)
+        if count and limit then infoParts[#infoParts + 1] = string.format("%d/%d", count, limit) end
+    end
     if icon.level then infoParts[#infoParts + 1] = ns:TF("%d级", icon.level) end
     if quality then infoParts[#infoParts + 1] = quality[4] end
     if icon.breed and icon.breed ~= "" then infoParts[#infoParts + 1] = "|cff38bdf8" .. icon.breed .. "|r" end

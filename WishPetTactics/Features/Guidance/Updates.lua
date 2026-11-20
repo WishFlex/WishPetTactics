@@ -2,8 +2,23 @@ local ADDON_NAME, ns = ...
 local Theme = ns.Theme
 
 -- Update this version and the localized entries whenever an addon version is released.
-local UPDATE_VERSION = "6.1.87"
+local UPDATE_VERSION = "6.1.90"
 local entries = {
+    {
+        title = {"极简模式筛选", "極簡模式篩選", "Minimal-mode filters"},
+        detail = {"宠物列表与练级队列新增筛选按钮；装笼选项移到召唤下方。", "寵物列表與練級佇列新增篩選按鈕；裝籠選項移到召喚下方。", "Filter pets and leveling queues in minimal mode; the cage option is below Summon."},
+        action = "pets",
+    },
+}
+local history = {
+    {
+        title = {"新宠物与更新引导", "新寵物與更新導覽", "New pet alerts and update guide"},
+        detail = {"点击收集提示查看宠物；自动引导仅显示本次更新，历史内容可在更新日志中查看。", "點擊收集提示查看寵物；自動導覽僅顯示本次更新，歷史內容可在更新日誌中查看。", "Click a new-pet alert to find it; the automatic guide now shows current changes only."},
+    },
+    {
+        title = {"宠物装笼与收藏数量", "寵物裝籠與收藏數量", "Pet cages and collection counts"},
+        detail = {"右键可交易宠物可装入笼中；悬浮详情显示已收集数量和上限。", "右鍵可交易寵物可裝入籠中；懸浮詳情顯示已收集數量和上限。", "Right-click a tradable pet to cage it; details show collected count and limit."},
+    },
     {
         title = {"槽位备用宠物", "欄位備用寵物", "Backup pets per slot"},
         detail = {"右键宠物槽位，开启血量换宠后配置备用宠物和技能。", "右鍵寵物欄位，開啟血量換寵後設定備用寵物與技能。", "Right-click a slot and enable health-based swapping to configure backups."},
@@ -54,7 +69,8 @@ local function OpenUpdateAction(action)
     end
 end
 
-function ns:ShowUpdateGuide()
+function ns:ShowUpdateGuide(showHistory)
+    if showHistory == nil then showHistory = true end
     if not self.db or InCombatLockdown() or (C_PetBattles and C_PetBattles.IsInBattle()) then return false end
     local main = self:CreateMainFrame()
     if not main:IsShown() then self:ShowMainFrame("HOME") end
@@ -74,6 +90,12 @@ function ns:ShowUpdateGuide()
         if UISpecialFrames then tinsert(UISpecialFrames, panel:GetName()) end
         panel.title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
         panel.title:SetPoint("TOPLEFT", 18, -16)
+        panel.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        panel.history:SetPoint("TOPLEFT", 28, -150)
+        panel.history:SetPoint("RIGHT", -24, 0)
+        panel.history:SetJustifyH("LEFT")
+        panel.history:SetJustifyV("TOP")
+        panel.history:SetWordWrap(true)
         local subtitle = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         subtitle:SetPoint("TOPLEFT", 18, -43)
         subtitle:SetText(Localized({"引导可持续查看，侧边栏可再次打开；点击条目体验", "導覽可持續查看，側邊欄可再次開啟；點擊項目體驗", "Guide stays open; reopen it from the sidebar. Select an item to explore."}))
@@ -111,6 +133,16 @@ function ns:ShowUpdateGuide()
         self.UpdateGuide = panel
     end
     self.UpdateGuide.title:SetText(Localized({"本次更新", "本次更新", "What's new"}) .. " · " .. UPDATE_VERSION)
+    local historicalLines = {}
+    if showHistory then
+        historicalLines[1] = Localized({"|cffffd100历史更新|r", "|cffffd100歷史更新|r", "|cffffd100Previous updates|r"})
+        for _, item in ipairs(history) do
+            historicalLines[#historicalLines + 1] = "\n|cff38bdf8" .. Localized(item.title) .. "|r\n" .. Localized(item.detail)
+        end
+    end
+    self.UpdateGuide.history:SetText(table.concat(historicalLines, "\n"))
+    self.UpdateGuide.history:SetShown(showHistory)
+    self.UpdateGuide:SetHeight(showHistory and 460 or (68 + #entries * 73 + 20))
     if self.UpdateGuide:IsShown() then
         if self.BringModalToFront then self:BringModalToFront(self.UpdateGuide) end
         return true
@@ -127,5 +159,5 @@ function ns:MaybeShowUpdateGuide()
     for _, modal in ipairs(self.modalFrames or {}) do
         if modal ~= self.UpdateGuide and modal:IsVisible() then return end
     end
-    self:ShowUpdateGuide()
+    self:ShowUpdateGuide(false)
 end
