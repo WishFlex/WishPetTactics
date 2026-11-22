@@ -736,6 +736,7 @@ function ns:HideAbilityTooltip()
 end
 
 -- ==================== 4. 3D 宠物详情卡 (Pet Card) ====================
+local petCardAbilityCache = {}
 function ns:RenderPetCard(anchorFrame, pData, pinNow)
     if not pData then return end
 
@@ -986,10 +987,11 @@ function ns:RenderPetCard(anchorFrame, pData, pinNow)
             card.model:Show()
         end
         card._pendingDisplayID = displayID
-        if card.model._lastDisplayID ~= displayID and not card._modelTimerPending then
-            card._modelTimerPending = true
-            C_Timer.After(0.02, function()
-                card._modelTimerPending = false
+        if card.model._lastDisplayID ~= displayID then
+            card._modelLoadToken = (card._modelLoadToken or 0) + 1
+            local loadToken = card._modelLoadToken
+            C_Timer.After(0.06, function()
+                if loadToken ~= card._modelLoadToken then return end
                 local wantID = card._pendingDisplayID
                 if card:IsShown() and wantID and card.model:IsShown() and card.model._lastDisplayID ~= wantID then
                     card.model._lastDisplayID = wantID
@@ -1020,7 +1022,16 @@ function ns:RenderPetCard(anchorFrame, pData, pinNow)
         local lv = sortedLevels and sortedLevels[idx] or idx
         btn.abID = abID
         if abID and abID > 0 then
-            local abName, abIcon = C_PetJournal.GetPetAbilityInfo(abID)
+            local cachedAb = petCardAbilityCache[abID]
+            local abName, abIcon
+            if cachedAb then
+                abName, abIcon = cachedAb[1], cachedAb[2]
+            else
+                abName, abIcon = C_PetJournal.GetPetAbilityInfo(abID)
+                if abIcon then
+                    petCardAbilityCache[abID] = { abName, abIcon }
+                end
+            end
             if btn._lastIcon ~= abIcon then
                 btn._lastIcon = abIcon
                 btn.icon.icon:SetTexture(abIcon)

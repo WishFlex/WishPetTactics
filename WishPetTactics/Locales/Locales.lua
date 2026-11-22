@@ -1019,6 +1019,9 @@ else
             [" (发现 %d 只未收集宠物)"] = "（發現 %d 隻未收集寵物）",
             ["导入完成：新增 %d 支，覆盖 %d 支，跳过 %d 支，绑定目标 %d 支%s！"] = "匯入完成：新增 %d 支，覆蓋 %d 支，略過 %d 支，綁定目標 %d 支%s！",
             ["备注："] = "備註：",
+            ["|cff9ca3af%d 支队伍|r"] = "|cff9ca3af%d 支隊伍|r",
+            ["|cff9ca3af%d 队|r"] = "|cff9ca3af%d 隊|r",
+            ["确定要放生宠物「%s」吗？放生后无法找回！"] = "確定要放生寵物「%s」嗎？放生後無法找回！",
         }
 
         activePatterns = {
@@ -2116,6 +2119,9 @@ else
             [" (发现 %d 只未收集宠物)"] = " (%d uncollected pets found)",
             ["导入完成：新增 %d 支，覆盖 %d 支，跳过 %d 支，绑定目标 %d 支%s！"] = "Import complete: +%d added, %d overwritten, %d skipped, %d bound%s!",
             ["备注："] = "Note: ",
+            ["|cff9ca3af%d 支队伍|r"] = "|cff9ca3af%d teams|r",
+            ["|cff9ca3af%d 队|r"] = "|cff9ca3af%d teams|r",
+            ["确定要放生宠物「%s」吗？放生后无法找回！"] = "Are you sure you want to release \"%s\"? This cannot be undone!",
         }
 
         activePatterns = {

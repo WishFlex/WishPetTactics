@@ -1,5 +1,15 @@
 # 更新说明 / Changelog
 
+## 6.1.95
+
+### 中文
+- 补全繁中（`zhTW`）与英文（`enUS`）缺失的精确本地化键值（队伍数量汇总、放生宠物确认弹窗），全插件 `T()`/`TF()` 翻译覆盖率达到 100%。
+- 进一步优化 3D 宠物悬停卡片流畅度：新增技能信息静态缓存（消除每次渲染重复查询 API），并将 3D 模型异步加载升级为 60ms 令牌防抖机制，杜绝快速划过时连续加载模型造成的抽帧。
+
+### English
+- Completed the remaining exact `zhTW` and `enUS` locale keys (team count summaries and pet release confirmation prompt), reaching 100% `T()`/`TF()` localization coverage across the addon.
+- Further smoothed 3D pet card hover performance by caching ability metadata (eliminating repeated `C_PetJournal.GetPetAbilityInfo` calls per hover) and upgrading asynchronous 3D model loading to a 60ms token-debounced trigger to prevent micro-stutters during rapid mouse sweeps.
+
 ## 6.1.94
 
 ### 中文
