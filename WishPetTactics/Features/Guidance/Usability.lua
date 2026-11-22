@@ -348,7 +348,7 @@ function ns:ShowUIFeedback(message)
     if not self.centerToast then
         local toast = CreateFrame('Frame', 'WishPetTacticsCenterToast', UIParent, 'BackdropTemplate')
         toast:SetSize(320, 36)
-        toast:SetPoint('CENTER', UIParent, 'CENTER', 0, 60)
+        toast:SetPoint('TOP', UIParent, 'TOP', 0, -180)
         toast:SetFrameStrata('TOOLTIP')
         toast:SetFrameLevel(950)
         toast:EnableMouse(false)
@@ -366,7 +366,7 @@ function ns:ShowUIFeedback(message)
     local tw = toast.text:GetStringWidth() or 180
     toast:SetWidth(math.max(220, tw + 48))
     toast:ClearAllPoints()
-    toast:SetPoint('CENTER', UIParent, 'CENTER', 0, 60)
+    toast:SetPoint('TOP', UIParent, 'TOP', 0, -180)
     toast:Show()
     local token = {}
     toast.token = token

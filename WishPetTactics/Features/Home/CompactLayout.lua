@@ -336,6 +336,7 @@ end
 
 -- Allow the minimal team picker and external callers to open the embedded team-management tab.
 function ns:SetCompactLeftMode(mode)
+    if self.MainFrame and self.MainFrame.compactLeft then self.MainFrame.compactLeft.relatedSpecies = nil end
     SetLeftMode(mode)
 end
 
@@ -448,7 +449,8 @@ local function PutDraftPet(draft, slot, petID)
     if canBattle == false then return false end
     local ids = ns:GetSortedPetAbilities(species)
     if not ids then return false end
-    draft.slots[slot] = { petID = petID, abilities = {ids[1], ids[2], ids[3]} }
+    local previous = draft.slots[slot]
+    draft.slots[slot] = { petID = petID, abilities = ns.AutoRouting:ValidateAbilitiesForSpecies(species, previous and previous.abilities or {ids[1], ids[2], ids[3]}) }
     return true
 end
 
@@ -463,9 +465,7 @@ function ns:PutCompactPet(slot, petID, fromQueue)
             self:PrintError(T("无法将此宠物放入该槽位"))
             return false
         end
-        if not fromQueue and not PutDraftPet(draft, slot, petID) then return false end
-        if fromQueue then draft.levelingSlot = slot
-        elseif draft.levelingSlot == slot then draft.levelingSlot = nil end
+        if not PutDraftPet(draft, slot, petID) then return false end
     else
         if not self:DropPetIntoSlot(slot, petID, fromQueue, true) then return false end
     end
@@ -1310,6 +1310,7 @@ local function BuildTeamsTreeItems(left, query)
         if query ~= "" then
             pass = ns.FuzzySearch:MatchFields(query, t.name, targetLabel, gName)
         end
+        if pass and left.relatedSpecies then pass = ns:TeamContainsSpecies(t, left.relatedSpecies) end
 
         if pass then
             if not groupMap[gName] then
@@ -1389,13 +1390,13 @@ local function BuildTeamsTreeItems(left, query)
         end
         return node
     end
-    local forceExpand = (query ~= "")
+    local forceExpand = (query ~= "") or left.relatedSpecies ~= nil
     local expandAllPending = left._expandAllPending
     left._expandAllPending = nil
 
     for _, gName in ipairs(groupOrder) do
         local gObj = groupMap[gName]
-        if gObj and (gObj.totalTeams > 0 or query == "") then
+        if gObj and (gObj.totalTeams > 0 or query == "" and not left.relatedSpecies) then
             if expandAllPending then
                 ns.db.expandedMatrixGroups[gName] = true
             end
@@ -2086,6 +2087,7 @@ function ns:InitHomeView(f, header)
     end
     searchBox:SetScript("OnTextChanged", function(self, userInput)
         if self._clearingSearch then return end
+        if userInput and left.relatedSpecies then left.relatedSpecies = nil; left._itemsMode = nil end
         left.offset = 0
         CancelCompactSearch()
         if not userInput then
@@ -2111,6 +2113,8 @@ function ns:InitHomeView(f, header)
         placeholder:SetShown(self:GetText() == "")
     end)
     Theme:EnableSearchClearButton(searchBox, function()
+        left.relatedSpecies = nil
+        left._itemsMode = nil
         left.offset = 0
         CancelCompactSearch()
         placeholder:SetShown(not searchBox:HasFocus())

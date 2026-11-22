@@ -2,15 +2,41 @@ local ADDON_NAME, ns = ...
 local Theme = ns.Theme
 
 -- Update this version and the localized entries whenever an addon version is released.
-local UPDATE_VERSION = "6.1.90"
+local UPDATE_VERSION = "6.1.94"
 local entries = {
+    {
+        title = {"批量加入练级队列", "批次加入練級佇列", "Batch leveling queue"},
+        detail = {"分组、目标和队伍右键均可加入未满级宠物，自动去重。", "分組、目標與隊伍右鍵皆可加入未滿級寵物，自動去重。", "Right-click a group, target or team to queue its under-level pets without duplicates."},
+        action = "targets",
+    },
+}
+local history = {
+    {
+        title = {"新建队伍的经验槽", "新建隊伍的經驗欄位", "Leveling slots in new teams"},
+        detail = {"放入未满级宠物保持普通槽位；右键手动设为经验槽。", "放入未滿級寵物維持普通欄位；右鍵手動設為經驗欄位。", "Under-level pets remain in ordinary slots. Use the slot's right-click action to enable leveling."},
+        action = "slot",
+    },
+
+    {
+        title = {"队伍宠物与练级", "隊伍寵物與練級", "Team pets and leveling"},
+        detail = {"右键槽位搜索同名宠物；分组可批量加入练级队列；替换宠物继承槽位技能。", "右鍵欄位搜尋同名寵物；分組可批次加入練級佇列；替換寵物繼承欄位技能。", "Find same-species pets, queue a group's under-level pets, and retain slot abilities when replacing pets."},
+        action = "slot",
+    },
+    {
+        title = {"队伍查找与战术备注", "隊伍尋找與戰術備註", "Team search and strategy notes"},
+        detail = {"相关队伍按宠物物种查找；队伍右键可查看导入备注；悬停查看未就绪原因。", "相關隊伍依寵物物種尋找；隊伍右鍵可查看匯入備註；懸停查看未就緒原因。", "Find teams by species, view imported notes, and hover a target team to see why it is not ready."},
+        action = "targets",
+    },
+    {
+        title = {"提示设置", "提示設定", "Notice settings"},
+        detail = {"复活和换队提示移至上方，可在显示设置关闭；修正假死等状态引起的重复提示。", "復活與換隊提示移至上方，可在顯示設定關閉；修正假死等狀態引起的重複提示。", "Notices are higher on screen and can be disabled in display settings; usability changes no longer trigger revive alerts."},
+        action = "display",
+    },
     {
         title = {"极简模式筛选", "極簡模式篩選", "Minimal-mode filters"},
         detail = {"宠物列表与练级队列新增筛选按钮；装笼选项移到召唤下方。", "寵物列表與練級佇列新增篩選按鈕；裝籠選項移到召喚下方。", "Filter pets and leveling queues in minimal mode; the cage option is below Summon."},
         action = "pets",
     },
-}
-local history = {
     {
         title = {"新宠物与更新引导", "新寵物與更新導覽", "New pet alerts and update guide"},
         detail = {"点击收集提示查看宠物；自动引导仅显示本次更新，历史内容可在更新日志中查看。", "點擊收集提示查看寵物；自動導覽僅顯示本次更新，歷史內容可在更新日誌中查看。", "Click a new-pet alert to find it; the automatic guide now shows current changes only."},
@@ -49,7 +75,9 @@ local function OpenUpdateAction(action)
     if action == "guide" then return end
     local main = ns:CreateMainFrame()
     ns:ShowMainFrame("HOME")
-    if action == "targets" then
+    if action == "display" then
+        if not ns.DisplaySettingsPanel or not ns.DisplaySettingsPanel:IsShown() then ns:ToggleDisplaySettings() end
+    elseif action == "targets" then
         ns:ShowRoutingModal(false, true)
     elseif action == "pets" then
         if main.mainUIStyle == "MINIMAL" then
@@ -90,9 +118,15 @@ function ns:ShowUpdateGuide(showHistory)
         if UISpecialFrames then tinsert(UISpecialFrames, panel:GetName()) end
         panel.title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
         panel.title:SetPoint("TOPLEFT", 18, -16)
-        panel.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        panel.history:SetPoint("TOPLEFT", 28, -150)
-        panel.history:SetPoint("RIGHT", -24, 0)
+        panel.historyScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+        panel.historyScroll:SetPoint("TOPLEFT", 28, -68 - #entries * 73 - 8)
+        panel.historyScroll:SetPoint("BOTTOMRIGHT", -35, 16)
+        panel.historyChild = CreateFrame("Frame", nil, panel.historyScroll)
+        panel.historyChild:SetSize(432, 1)
+        panel.historyScroll:SetScrollChild(panel.historyChild)
+        panel.history = panel.historyChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        panel.history:SetPoint("TOPLEFT")
+        panel.history:SetWidth(432)
         panel.history:SetJustifyH("LEFT")
         panel.history:SetJustifyV("TOP")
         panel.history:SetWordWrap(true)
@@ -141,8 +175,10 @@ function ns:ShowUpdateGuide(showHistory)
         end
     end
     self.UpdateGuide.history:SetText(table.concat(historicalLines, "\n"))
-    self.UpdateGuide.history:SetShown(showHistory)
-    self.UpdateGuide:SetHeight(showHistory and 460 or (68 + #entries * 73 + 20))
+    self.UpdateGuide.historyChild:SetHeight(math.max(1, self.UpdateGuide.history:GetStringHeight() + 8))
+    self.UpdateGuide.historyScroll:SetShown(showHistory)
+    self.UpdateGuide.historyScroll:SetVerticalScroll(0)
+    self.UpdateGuide:SetHeight(showHistory and 540 or (68 + #entries * 73 + 20))
     if self.UpdateGuide:IsShown() then
         if self.BringModalToFront then self:BringModalToFront(self.UpdateGuide) end
         return true

@@ -1,5 +1,23 @@
 # 更新说明 / Changelog
 
+## 6.1.94
+
+### 中文
+- 分组、目标和队伍右键菜单均支持批量加入未满级宠物到练级队列，自动跳过已满级宠物并去重。
+- 队伍宠物槽位可搜索同名宠物；手动替换宠物保留槽位已选择的可用技能。
+- 修正宠物查找相关队伍，支持匹配备用宠物；支持查看导入的战术备注及队伍未就绪原因。
+- 修正关闭血量保护后仍要求满血导致队伍未就绪的问题。
+- 复活与换队提示移至屏幕上方，显示设置可分别关闭；修正假死等状态触发重复复活提示。
+- 新建队伍放入未满级宠物保持普通槽位，仅通过右键手动设为经验槽。
+
+### English
+- Group, target and team context menus can queue under-level pets in bulk, skipping max-level pets and duplicates.
+- Find same-species pets from team slots; manual replacements retain the slot's selected abilities when available.
+- Fixed related-team searches, including backup species; added imported strategy notes and explanations for teams that are not ready.
+- Fixed teams incorrectly requiring full health when health protection is disabled.
+- Moved revive and team notices higher on screen, added separate display toggles, and prevented repeated revive alerts from usability changes such as Feign Death.
+- Under-level pets added to new teams remain in ordinary slots; enable a leveling slot explicitly with its right-click menu.
+
 ## 6.1.91
 
 ### 中文

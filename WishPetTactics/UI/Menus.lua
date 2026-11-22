@@ -381,7 +381,7 @@ function ns:ShowMatrixGroupContextMenu(anchorRow, groupName)
         Theme:ApplyBackdrop(gm, Theme.Colors.bgPopup, Theme.Colors.border, true)
         gm.items = {}
 
-        for i = 1, 5 do
+        for i = 1, 6 do
             local item = Theme:CreateMenuRow(gm, 236, 24, "")
             item:SetPoint("TOPLEFT", 4, -4 - ((i - 1) * 24))
             item:SetScript("OnClick", function(selfBtn)
@@ -390,6 +390,8 @@ function ns:ShowMatrixGroupContextMenu(anchorRow, groupName)
                 ns:HideAllPopups()
                 if act == "NEW_TEAM" and gName then
                     ns:ShowTeamBuilderModal(nil, gName)
+                elseif act == "QUEUE_GROUP" and gName then
+                    ns:EnqueueGroupPets(gName)
                 elseif act == "EXPORT_GROUP" and gName then
                     local exportStr, cnt = ns:ExportGroupTeamsString(gName)
                     if not exportStr or exportStr == "" or (cnt or 0) <= 0 then
@@ -462,6 +464,12 @@ function ns:ShowMatrixGroupContextMenu(anchorRow, groupName)
         gm:SetHeight(3 * 24 + 8)
     end
 
+    gm.items[6].actionID = "QUEUE_GROUP"
+    gm.items[6].text:SetText(ns:ForumText("将本组未满级宠物加入队列", "將本組未滿級寵物加入佇列", "Queue this group's under-level pets"))
+    gm.items[6]:ClearAllPoints()
+    gm.items[6]:SetPoint("TOPLEFT", 4, -(gm:GetHeight() - 4))
+    gm.items[6]:Show()
+    gm:SetHeight(gm:GetHeight() + 24)
     ShowAnchoredContextMenu(gm, anchorRow, function()
         local node = anchorRow.node
         return node and node.nodeType == "GROUP" and node.groupName == groupName
@@ -675,6 +683,11 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex, targetTeam)
                 ns:ShowSlotBackups(team, slot)
             end
         end)
+        sm.searchPetBtn = Theme:CreateFlatButton(sm, 212, 24, ns:ForumText("搜索同名宠物", "搜尋同名寵物", "Find pets of this species"), nil, "LEFT")
+        sm.searchPetBtn:SetScript("OnClick", function()
+            local team = sm.targetTeam or (ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx])
+            if team then ns:SearchSameSpecies(team, sm.slotIndex) end
+        end)
 
         local function MenuTeam()
             return sm.targetTeam or (ns.db and ns.db.teams and ns.db.teams[ns.db.selectedTeamIdx])
@@ -745,6 +758,11 @@ function ns:ShowSlotThresholdMenu(anchorCard, slotIndex, targetTeam)
                     self:SetHeight(126)
                 end
             end
+            local baseHeight = hpEnabled and (canConfigure and 200 or 176) or 126
+            self.searchPetBtn:ClearAllPoints()
+            self.searchPetBtn:SetPoint("TOPLEFT", 10, -baseHeight)
+            self.searchPetBtn:SetEnabled(team ~= nil and not isLv)
+            self:SetHeight(baseHeight + 28)
         end
 
         sm.lvSwitch:SetScript("OnClick", function()
@@ -1682,13 +1700,7 @@ function ns:ShowPetContextMenu(anchorRow, petData)
                     RefreshPetDrawerAndUI(true)
                 elseif idx == 6 then
                     ns:HideAllPopups()
-                    local kw = pData.speciesName or pData.name or ""
-                    if ns.ShowTeamMatrixModal then
-                        ns:ShowTeamMatrixModal()
-                        if ns.TeamMatrixModal and ns.TeamMatrixModal.searchBox then
-                            ns.TeamMatrixModal.searchBox:SetText(kw)
-                        end
-                    end
+                    ns:FindRelatedTeams(speciesID)
                 elseif idx == 7 then
                     ns:HideAllPopups()
                     if petID and ns.ShowPetRenameModal then
@@ -1833,7 +1845,9 @@ local TEAM_MENU_LABELS = {
     [8]  = "导出队伍（含脚本）",
     [9]  = ns:T("导出脚本"),
     [10] = "|cffff4d4d删除队伍|r",
-    [11] = "取消",
+    [11] = ns.locale == "zhTW" and "查看戰術備註" or ns.locale == "zhCN" and "查看战术备注" or "Strategy notes",
+    [12] = ns:ForumText("本队未满级宠物加入队列", "本隊未滿級寵物加入佇列", "Queue under-level pets"),
+    [13] = "取消",
 }
 
 function ns:ShowTeamContextMenu(anchorRow, teamIndex)
@@ -1941,6 +1955,12 @@ function ns:ShowTeamContextMenu(anchorRow, teamIndex)
                     end
                 elseif idx == 11 then
                     ns:HideAllPopups()
+                    ns:ShowTeamNotes(tObj)
+                elseif idx == 12 then
+                    ns:HideAllPopups()
+                    ns:EnqueueTeamPets({tObj})
+                elseif idx == 13 then
+                    ns:HideAllPopups()
                 end
             end)
 
@@ -2009,6 +2029,7 @@ local ROUTE_TARGET_MENU_LABELS = {
     [6] = "|cffff4d4d删除目标及关联队伍|r",
     [7] = "取消",
     [8] = "移动到分组",
+    [9] = ns:ForumText("目标未满级宠物加入队列", "目標未滿級寵物加入佇列", "Queue under-level pets"),
 }
 
 function ns:ShowRouteTargetContextMenu(anchorRow, routeKey, matrixTargetKey)
@@ -2087,7 +2108,9 @@ function ns:ShowRouteTargetContextMenu(anchorRow, routeKey, matrixTargetKey)
                 ns:HideAllPopups()
                 if not route then return end
 
-                if idx == 1 then
+                if idx == 9 then
+                    ns:EnqueueTargetPets(route)
+                elseif idx == 1 then
                     if route.teams and route.teams[1] then
                         ns.db.lastActiveRouteKey = rKey
                         ns.AutoRouting:LoadTeamWithFallbackChain(route.teams[1], route)
@@ -2182,7 +2205,7 @@ function ns:ShowRouteTargetContextMenu(anchorRow, routeKey, matrixTargetKey)
 
     rtm.groupSub:Hide()
     rtm.groupSub.offset = 0
-    local order = matrixTargetKey and {8, 3, 4, 5, 6, 7} or {1, 2, 8, 3, 4, 5, 6, 7}
+    local order = matrixTargetKey and {8, 9, 3, 4, 5, 6, 7} or {1, 2, 8, 9, 3, 4, 5, 6, 7}
     for _, item in ipairs(rtm.items) do item:Hide() end
     for row, idx in ipairs(order) do
         local item = rtm.items[idx]
@@ -2214,7 +2237,9 @@ local ROUTE_TEAM_MENU_LABELS = {
     [7]  = ns:T("导出脚本"),
     [8]  = "|cffffb800解除当前目标关联|r",
     [9]  = "|cffff4d4d删除队伍|r",
-    [10] = "取消",
+    [10] = ns.locale == "zhTW" and "查看戰術備註" or ns.locale == "zhCN" and "查看战术备注" or "Strategy notes",
+    [11] = ns:ForumText("本队未满级宠物加入队列", "本隊未滿級寵物加入佇列", "Queue under-level pets"),
+    [12] = "取消",
 }
 
 function ns:ShowRouteTeamContextMenu(anchorRow, routeKey, teamName)
@@ -2273,6 +2298,10 @@ function ns:ShowRouteTeamContextMenu(anchorRow, routeKey, teamName)
                         if ns.RoutingModal and ns.RoutingModal:IsShown() then ns.RoutingModal:Refresh() end
                         ns:RefreshAllUI()
                     end)
+                elseif idx == 10 and tObj then
+                    ns:ShowTeamNotes(tObj)
+                elseif idx == 11 and tObj then
+                    ns:EnqueueTeamPets({tObj})
                 end
             end)
             rcm.items[i] = item
@@ -2569,13 +2598,14 @@ function ns:ShowTeamBuilderModal(routeKey, defaultGroup, editTeamIndex)
         function bm:AssignPetToSlot(slotIdx, petID)
             if not slotIdx or slotIdx < 1 or slotIdx > 3 or not petID then return end
             local st = self.builderState.slots[slotIdx]
-            local isFromQueue = (ns.draggingQueuePetID ~= nil) or (ns.PetPickerModal and ns.PetPickerModal:IsShown() and ns.PetPickerModal.mode == "QUEUE")
 
             ClearCursor()
             ns.draggingPetID = nil
             ns.draggingQueuePetID = nil
 
-            if isFromQueue then
+            -- Only the slot's right-click action enables leveling. Selecting or
+            -- dragging a pet from the queue must not change an ordinary slot.
+            if st.isLeveling then
                 st.randomType = nil
                 for k = 1, 3 do
                     if k ~= slotIdx and self.builderState.slots[k].isLeveling then

@@ -262,7 +262,7 @@ function ns:IsPetHealthyForLoadout(hp, maxHp, threshold)
     if hp <= 0 then return false end
     threshold = tonumber(threshold) or 0
     if threshold <= 0 then
-        return hp >= maxHp
+        return true
     elseif threshold <= 100 then
         return ((hp / maxHp) * 100) > threshold
     else
@@ -1963,13 +1963,13 @@ function ns.AutoRouting:CanTeamFight(team, requireHealthy, evaluation)
 
         if team.hasLevelingSlot and slot == lvSlot then
             if levelingActive and not ns.Leveling:HasLivingQueuePet(evaluation) then
-                return false
+                return false, ns:ForumText("经验槽：没有存活的练级宠物", "經驗槽：沒有存活的練級寵物", "Leveling slot: no living queue pet")
             elseif not levelingActive then
                 local petID = ns.Leveling:GetSlotFallback(team, slot, scratchUsedPets)
-                if not petID then return false end
+                if not petID then return false, ns:ForumText("经验槽：队列为空且没有默认宠物", "經驗槽：佇列為空且沒有預設寵物", "Leveling slot: queue and fallback are empty") end
                 local hp, maxHp = C_PetJournal.GetPetStats(petID)
                 if requireHealthy and not ns:IsPetHealthyForLoadout(hp, maxHp, slotTh)
-                    or not requireHealthy and (not hp or hp <= 0) then return false end
+                    or not requireHealthy and (not hp or hp <= 0) then return false, ns:ForumText("经验槽：默认宠物血量不足", "經驗槽：預設寵物血量不足", "Leveling fallback: insufficient health") end
                 scratchUsedPets[petID] = true
             end
         elseif not (team.randomSlots and team.randomSlots[slot] ~= nil) then
@@ -2010,8 +2010,10 @@ function ns.AutoRouting:CanTeamFight(team, requireHealthy, evaluation)
                     end
                 end
                 if not slotReady then
-                    return false
+                    return false, string.format(ns:ForumText("%d 号槽：没有符合血量要求的宠物（含备用）", "%d 號欄位：沒有符合血量要求的寵物（含備用）", "Slot %d: no pet meets health requirements, including backups"), slot)
                 end
+            else
+                return false, string.format(ns:ForumText("%d 号槽：未设置宠物", "%d 號欄位：未設定寵物", "Slot %d: no configured pet"), slot)
             end
         end
     end
@@ -2020,7 +2022,7 @@ function ns.AutoRouting:CanTeamFight(team, requireHealthy, evaluation)
         local randomPets = ResolveRandomSlots(team, lvSlot, scratchUsedPets, requireHealthy, nil, evaluation)
         for slot = 1, 3 do
             if team.randomSlots[slot] ~= nil and not (team.hasLevelingSlot and slot == lvSlot) and not randomPets[slot] then
-                return false
+                return false, ns:ForumText("随机槽：没有符合类型和血量要求的宠物", "隨機欄位：沒有符合類型與血量要求的寵物", "Random slot: no eligible pet of the required type and health")
             end
         end
     end
@@ -2849,7 +2851,7 @@ function ns.AutoRouting:LoadTeamWithFallbackChain(startTeamName, routeObj, defer
             and not (C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle())
         ns.db.selectedTeamIdx = teamIndex
         self:ApplyTeamData(team, requireHealthy, evaluation, deferRefresh, resetPriority and team == self:FindTeamByName(fallbackCandScratch[1]))
-        if canApplyNow and team ~= curTeam and ns.ShowUIFeedback and not ns._battleEndReportPending then
+        if canApplyNow and team ~= curTeam and ns.ShowUIFeedback and not ns._battleEndReportPending and ns.db.settings.battleEndTeamReport ~= false then
             ns:ShowUIFeedback(ns:TF("已切换到 %s 号队伍", BattleTeamSequence(team, routeObj)))
         end
     end
@@ -4797,6 +4799,7 @@ end
 
 local function ShowBattleEndTeamReport(previousTeam, previousPetIDs)
     if not ns.db or not ns.db.settings or not ns.db.teams then return end
+    if ns.db.settings.battleEndTeamReport == false then return end
     local reportText
     local currentTeam = ns.db.teams[ns.db.selectedTeamIdx]
     if not currentTeam then
@@ -4811,7 +4814,7 @@ local function ShowBattleEndTeamReport(previousTeam, previousPetIDs)
 
         if not currentHealthy and not HasHealthyBattleCandidate(currentTeam, route) then
             reportText = "|cffff4040" .. ns:T("当前队伍不健康，且没有可用替换队伍") .. "|r"
-            if ns:IsRevivePetCooldownReady() then
+            if ns.db.settings.reviveReadyNotice ~= false and ns:IsRevivePetCooldownReady() then
                 reportText = reportText .. " · |cffff4040" .. ns:T("复活战斗宠物已就绪") .. "|r"
             end
         elseif ns.db.settings.battleEndTeamReport == false then
@@ -4929,7 +4932,7 @@ local function ScheduleReviveReadyCheck()
         if not wasReviveReady then
             wasReviveReady = true
             ns._reviveResetPending = true
-            if ns.ShowUIFeedback then ns:ShowUIFeedback("|cffff4040" .. ns:T("复活战斗宠物已就绪") .. "|r") end
+            if ns.ShowUIFeedback and ns.db and ns.db.settings.reviveReadyNotice ~= false then ns:ShowUIFeedback("|cffff4040" .. ns:T("复活战斗宠物已就绪") .. "|r") end
             ThrottledEnsurePrepared(0.3)
         end
     end)
@@ -5135,7 +5138,7 @@ engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
         ns.BattleStats.lastPlayerXP = (not ns:IsSecretValue(uXP) and tonumber(uXP)) or 0
         ns.BattleStats.lastPlayerMaxXP = math.max(1, (not ns:IsSecretValue(uMax) and tonumber(uMax)) or 1)
         ns.BattleStats.lastPlayerLevel = (not ns:IsSecretValue(uLv) and tonumber(uLv)) or 1
-        wasReviveReady = ns:IsRevivePetCooldownReady()
+        wasReviveReady = ns:GetRevivePetCooldownRemain() <= 0
         if wasReviveReady and not (C_PetBattles and C_PetBattles.IsInBattle()) then
             ns._reviveResetPending = true
         end
@@ -5346,12 +5349,12 @@ engineFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
         lastCooldownPollTime = now
 
         if not inPetBattle then
-            local nowReady = ns:IsRevivePetCooldownReady()
+            local nowReady = ns:GetRevivePetCooldownRemain() <= 0
             if not nowReady then ScheduleReviveReadyCheck() end
             if nowReady and not wasReviveReady then
                 wasReviveReady = true
                 ns._reviveResetPending = true
-                if ns.ShowUIFeedback then ns:ShowUIFeedback("|cffff4040" .. ns:T("复活战斗宠物已就绪") .. "|r") end
+                if ns.ShowUIFeedback and ns.db.settings.reviveReadyNotice ~= false then ns:ShowUIFeedback("|cffff4040" .. ns:T("复活战斗宠物已就绪") .. "|r") end
                 ThrottledEnsurePrepared(0.3)
             else
                 wasReviveReady = nowReady

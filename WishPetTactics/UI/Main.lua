@@ -308,7 +308,8 @@ function ns:DropPetIntoSlot(slotIndex, explicitPetID, fromQueue, suppressFeedbac
     end
     local previousDirty = self.staging.isDirty
     self.staging.isDirty = true
-    self.AutoRouting:EquipPetAndSyncSkills(slotIndex, petID)
+    local skills = not fromQueue and team and team.abilities and team.abilities[slotIndex]
+    self.AutoRouting:EquipPetAndSyncSkills(slotIndex, petID, skills)
     if C_PetJournal.GetPetLoadOutInfo(slotIndex) ~= petID then
         self.AutoRouting:CancelPendingSlotEquip(slotIndex)
         self.staging.isDirty = previousDirty
@@ -416,7 +417,7 @@ function ns:ToggleDisplaySettings(button)
     if not ns.DisplaySettingsPanel then
         local panel = CreateFrame("Frame", "WishPetTacticsDisplaySettingsPanel", ns.MainFrame, "BackdropTemplate")
         panel:Hide()
-        panel:SetSize(276, 242)
+        panel:SetSize(276, 306)
         panel:SetFrameStrata("FULLSCREEN_DIALOG")
         panel:SetClampedToScreen(true)
         panel:EnableMouse(true)
@@ -528,14 +529,28 @@ function ns:ToggleDisplaySettings(button)
             panel:Refresh()
         end)
 
-        -- 第 6 行：恢复默认显示设置
+        local reviveNotice = Theme:CreateFlatButton(panel, 252, 26, "", nil, "LEFT")
+        reviveNotice:SetPoint("TOPLEFT", 12, ROW_START_Y - 5 * ROW_STEP_Y)
+        reviveNotice:SetScript("OnClick", function()
+            ns.db.settings.reviveReadyNotice = ns.db.settings.reviveReadyNotice == false
+            panel:Refresh()
+        end)
+        local teamNotice = Theme:CreateFlatButton(panel, 252, 26, "", nil, "LEFT")
+        teamNotice:SetPoint("TOPLEFT", 12, ROW_START_Y - 6 * ROW_STEP_Y)
+        teamNotice:SetScript("OnClick", function()
+            ns.db.settings.battleEndTeamReport = ns.db.settings.battleEndTeamReport == false
+            panel:Refresh()
+        end)
+        -- 第 8 行：恢复默认显示设置
         local reset = Theme:CreateActionButton(panel, 252, 26, "恢复默认显示设置", "restore", nil, nil, false, "LEFT")
-        reset:SetPoint("TOPLEFT", 12, ROW_START_Y - 5 * ROW_STEP_Y)
+        reset:SetPoint("TOPLEFT", 12, ROW_START_Y - 7 * ROW_STEP_Y)
         reset:SetScript("OnClick", function(_, mouseButton)
             if mouseButton ~= "LeftButton" then return end
             ns.db.settings.uiAutoScale = true
             ns.db.settings.uiScale = 1
             ns.db.settings.petCardHover3D = true
+            ns.db.settings.reviveReadyNotice = true
+            ns.db.settings.battleEndTeamReport = true
             Theme:UpdateAllFramesAlpha(DEFAULT_OPACITY)
             ns:RefreshMainUIScale()
             if C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle() then
@@ -546,6 +561,8 @@ function ns:ToggleDisplaySettings(button)
 
         function panel:Refresh()
             local settings = ns.db.settings
+            reviveNotice.text:SetText(ns:ForumText("复活就绪提示：", "復活就緒提示：", "Revive ready notice: ") .. (settings.reviveReadyNotice ~= false and ns:ForumText("开启", "開啟", "On") or ns:ForumText("关闭", "關閉", "Off")))
+            teamNotice.text:SetText(ns:ForumText("换队信息提示：", "換隊資訊提示：", "Team status notices: ") .. (settings.battleEndTeamReport ~= false and ns:ForumText("开启", "開啟", "On") or ns:ForumText("关闭", "關閉", "Off")))
             auto:SetSelected(settings.uiAutoScale)
             auto.text:SetText(ns:T(settings.uiAutoScale and "自动缩放：开启" or "自动缩放：关闭"))
             petCardHoverToggle:SetSelected(settings.petCardHover3D ~= false)

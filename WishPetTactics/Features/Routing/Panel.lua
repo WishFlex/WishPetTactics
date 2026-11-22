@@ -748,6 +748,7 @@ function ns:ShowRoutingModal(standalone, preferTeam)
             tr:SetScript("OnEnter", function(selfBtn)
                 SyncTrUnderline()
                 selfBtn.underline:Show()
+                if selfBtn.readyReason then ns:ShowCustomTooltip(selfBtn, "ANCHOR_RIGHT", selfBtn.readyReason) end
                 if ns.draggingRouteTeamIdx and selfBtn.realIdx and ns.draggingRouteTeamIdx ~= selfBtn.realIdx then
                     ns.hoverRouteTeamIdx = selfBtn.realIdx
                     if selfBtn.dropLine then selfBtn.dropLine:Show() end
@@ -756,6 +757,7 @@ function ns:ShowRoutingModal(standalone, preferTeam)
             end)
 
             tr:SetScript("OnLeave", function(selfBtn)
+                ns:HideCustomTooltip(selfBtn)
                 selfBtn.underline:Hide()
                 if selfBtn.dropLine then selfBtn.dropLine:Hide() end
                 if selfBtn.isCurActive then
@@ -970,8 +972,10 @@ function ns:ShowRoutingModal(standalone, preferTeam)
                     end
 
                     local status = "|cff6b7280● 未知|r"
+                    tr.readyReason = nil
                     if snap.tObj then
-                        local ready = ns.AutoRouting:CanTeamFight(snap.tObj, true, evaluation)
+                        local ready, reason = ns.AutoRouting:CanTeamFight(snap.tObj, true, evaluation)
+                        tr.readyReason = not ready and reason or nil
                         status = ready and "|cff10b981● 就绪|r" or "|cffffb800● 未就绪|r"
                     end
                     tr.statusTxt:SetText(status)
