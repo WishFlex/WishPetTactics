@@ -1,5 +1,13 @@
 # 更新说明 / Changelog
 
+## 6.1.96
+
+### 中文
+- 修复升级队列为空时经验槽被清空并提示未就绪的问题：当练级队列没有需要升级的宠物且无可用默认宠物时，经验槽现在会自动从图鉴中随机填入一只存活可对战宠物（优先未满级宠物，全部满级时随机填入 25 级健康宠物），并在已有健康宠物时稳定保留不乱换。
+
+### English
+- Fixed leveling slots being cleared and marked unready when the leveling queue is empty: if no queued pet or healthy fallback is available, the leveling slot now automatically fills a random living battle pet from your journal (preferring pets under level 25, or any healthy level 25 pet if all are maxed) and preserves it while healthy.
+
 ## 6.1.95
 
 ### 中文

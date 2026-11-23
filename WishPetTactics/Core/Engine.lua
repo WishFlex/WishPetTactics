@@ -1462,6 +1462,57 @@ function ns.Leveling:GetSlotFallback(team, slot, usedPets, fallback)
     end
 end
 
+function ns.Leveling:FindRandomAvailablePet(usedPets, requireHealthy, slotTh)
+    local unleveled, anyAlive = {}, {}
+    local cache = ns.GetPetJournalCache and ns:GetPetJournalCache()
+    if cache and cache.allCollected and #cache.allCollected > 0 then
+        for i = 1, #cache.allCollected do
+            local petID = cache.allCollected[i]
+            if petID and not (usedPets and usedPets[petID]) then
+                local packed = cache.packedPet and cache.packedPet[petID]
+                local lv = packed and (packed % 64) or 25
+                local canBattle = not (cache.nonBattle and cache.nonBattle[petID])
+                if canBattle then
+                    local hp, maxHp = C_PetJournal.GetPetStats(petID)
+                    local ok = requireHealthy and ns:IsPetHealthyForLoadout(hp, maxHp, slotTh)
+                        or (not requireHealthy and hp and hp > 0)
+                    if ok then
+                        if lv < 25 then
+                            unleveled[#unleveled + 1] = petID
+                        else
+                            anyAlive[#anyAlive + 1] = petID
+                        end
+                    end
+                end
+            end
+        end
+    else
+        local numPets = (C_PetJournal and C_PetJournal.GetNumPets and C_PetJournal.GetNumPets()) or 0
+        for i = 1, numPets do
+            local petID, _, isCollected, _, lv, _, _, _, _, _, _, _, _, _, canBattle = C_PetJournal.GetPetInfoByIndex(i)
+            if isCollected and petID and canBattle ~= false and not (usedPets and usedPets[petID]) then
+                local hp, maxHp = C_PetJournal.GetPetStats(petID)
+                local ok = requireHealthy and ns:IsPetHealthyForLoadout(hp, maxHp, slotTh)
+                    or (not requireHealthy and hp and hp > 0)
+                if ok then
+                    if lv and lv < 25 then
+                        unleveled[#unleveled + 1] = petID
+                    else
+                        anyAlive[#anyAlive + 1] = petID
+                    end
+                end
+            end
+        end
+    end
+    if #unleveled > 0 then
+        return unleveled[math.random(#unleveled)]
+    end
+    if #anyAlive > 0 then
+        return anyAlive[math.random(#anyAlive)]
+    end
+    return nil
+end
+
 function ns.Leveling:RestoreSlotFallback(team, slot, fallback)
     if not team or InCombatLockdown() or (C_PetBattles and C_PetBattles.IsInBattle()) then return end
     local used = {}
@@ -1471,7 +1522,14 @@ function ns.Leveling:RestoreSlotFallback(team, slot, fallback)
             if petID then used[petID] = true end
         end
     end
+    local slotTh = ns:GetSlotThreshold(team, slot)
     local petID, abilities = self:GetSlotFallback(team, slot, used, fallback)
+    if petID then
+        local hp, maxHp = C_PetJournal.GetPetStats(petID)
+        if not hp or hp <= 0 then
+            petID, abilities = nil, nil
+        end
+    end
     local live, a1, a2, a3 = C_PetJournal.GetPetLoadOutInfo(slot)
     if petID then
         if live ~= petID or (abilities and ((abilities[1] or 0) > 0 and a1 ~= abilities[1]
@@ -1479,10 +1537,24 @@ function ns.Leveling:RestoreSlotFallback(team, slot, fallback)
             or (abilities[3] or 0) > 0 and a3 ~= abilities[3])) then
             ns.AutoRouting:EquipPetAndSyncSkills(slot, petID, abilities)
         end
-    elseif live then
-        ns.AutoRouting:ClearLoadoutSlot(slot)
+        return petID
     end
-    return petID
+    -- 队列为空且无可用默认宠物时：若当前槽位已有健康宠物则保留，否则随机填入一只存活可对战宠物
+    if live and not used[live] then
+        local hp, maxHp = C_PetJournal.GetPetStats(live)
+        if ns:IsPetHealthyForLoadout(hp, maxHp, slotTh) then
+            return live
+        end
+    end
+    local randomPetID = self:FindRandomAvailablePet(used, true, slotTh)
+        or self:FindRandomAvailablePet(used, false, slotTh)
+    if randomPetID then
+        if live ~= randomPetID then
+            ns.AutoRouting:EquipPetAndSyncSkills(slot, randomPetID)
+        end
+        return randomPetID
+    end
+    return nil
 end
 
 -- 当槽位被设为经验槽或点击空经验槽时，自动从图鉴中随机挑选一只存活的未满级可对战宠物加入练级队列并填入槽位
@@ -1966,10 +2038,18 @@ function ns.AutoRouting:CanTeamFight(team, requireHealthy, evaluation)
                 return false, ns:ForumText("经验槽：没有存活的练级宠物", "經驗槽：沒有存活的練級寵物", "Leveling slot: no living queue pet")
             elseif not levelingActive then
                 local petID = ns.Leveling:GetSlotFallback(team, slot, scratchUsedPets)
-                if not petID then return false, ns:ForumText("经验槽：队列为空且没有默认宠物", "經驗槽：佇列為空且沒有預設寵物", "Leveling slot: queue and fallback are empty") end
-                local hp, maxHp = C_PetJournal.GetPetStats(petID)
-                if requireHealthy and not ns:IsPetHealthyForLoadout(hp, maxHp, slotTh)
-                    or not requireHealthy and (not hp or hp <= 0) then return false, ns:ForumText("经验槽：默认宠物血量不足", "經驗槽：預設寵物血量不足", "Leveling fallback: insufficient health") end
+                if petID then
+                    local hp, maxHp = C_PetJournal.GetPetStats(petID)
+                    local healthy = requireHealthy and ns:IsPetHealthyForLoadout(hp, maxHp, slotTh)
+                        or (not requireHealthy and hp and hp > 0)
+                    if not healthy then petID = nil end
+                end
+                if not petID then
+                    petID = ns.Leveling:FindRandomAvailablePet(scratchUsedPets, requireHealthy, slotTh)
+                end
+                if not petID then
+                    return false, ns:ForumText("经验槽：没有可用的存活宠物", "經驗槽：沒有可用的存活寵物", "Leveling slot: no available living pet")
+                end
                 scratchUsedPets[petID] = true
             end
         elseif not (team.randomSlots and team.randomSlots[slot] ~= nil) then
@@ -2463,8 +2543,14 @@ function ns.AutoRouting:IsCurrentLoadoutHealthyAndReady(team)
         if team.hasLevelingSlot and slot == lvSlot then
             if levelingActive then
                 if not ns.Leveling:IsPetInQueue(petID) then return false end
-            elseif ns.Leveling:GetSlotFallback(team, slot) ~= petID then
-                return false
+            else
+                local fallbackID = ns.Leveling:GetSlotFallback(team, slot)
+                if fallbackID then
+                    local fHp, fMaxHp = C_PetJournal.GetPetStats(fallbackID)
+                    if ns:IsPetHealthyForLoadout(fHp, fMaxHp, slotTh) and fallbackID ~= petID then
+                        return false
+                    end
+                end
             end
         elseif team.randomSlots and team.randomSlots[slot] ~= nil then
             if self:GetResolvedRandomPet(team, slot) ~= petID then return false end
